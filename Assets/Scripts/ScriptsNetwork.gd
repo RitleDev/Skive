@@ -22,10 +22,13 @@ func _ready():
 # Responsible for hosting a server and managing connections
 func server():
 	print('Initializing server...')
-	socketUDP.listen(SERVER_PORT, host_ip)
+	var status = socketUDP.listen(SERVER_PORT, host_ip)
+	if status == 0:
+		print('Server listen OK')
 	while true:
 		if socketUDP.get_available_packet_count() > 0:
 			var array_bytes = socketUDP.get_packet()
+			print(array_bytes)
 			var ip = socketUDP.get_packet_ip()
 			var port = socketUDP.get_packet_port()
 			print('From: <', ip, ', ', String(port), '>')
@@ -68,17 +71,15 @@ func server_protocol(data):
 
 # Starts a server on button click
 func _on_ServerButton_pressed():
-	print('Starting server...')
 	thread = Thread.new()
 	thread.start(self, 'server')
 	
 func _on_ClientButton_pressed():
-	print('Starting client...')
 	thread = Thread.new()
 	thread.start(self, 'client')
 
 # Converts an array of ints into a string. (using ASCII)
-func byte_array_to_string(array) -> String:
+static func byte_array_to_string(array) -> String:
 	var result: String = ''
 	for item in array:
 		result += char(item)
@@ -98,6 +99,32 @@ func get_local_ip() -> String:
 			ip=address
 	return ip
 	
+	
+class User:
+	func _init(name: String, position: Vector2, ip: String, port: int, 
+	socketUDP: PacketPeerUDP):
+		self.name = name
+		self.position = position
+		self.ip = ip
+		self.port = port
+		self.socketUDP = socketUDP
+
+	# Data can be either String or TYPE_RAW_ARRAY(PoolByteArray)
+	# See Docs: https://bit.ly/36c5nZ8 (For all types)
+	func send_packet(data):
+		if typeof(data) == 20:  # TYPE_RAW_ARRAY (PoolByteArray)
+			self.socketUDP.set_dest_address(self.ip, self.port)
+			self.socketUDP.put_packet(data)
+		elif typeof(data) == 4:  # String
+			self.socketUDP.set_dest_address(self.ip, self.port)
+			self.socketUDP.put_packet(string_to_byte_array(data))
+	
+	# Opposite of byte_array_to_string
+	static func string_to_byte_array(string: String):
+		var array = []
+		for letter in string:
+			array.append(ord(letter))
+		return array
 
 
 
