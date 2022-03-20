@@ -1,11 +1,18 @@
 extends Node
 
+# Time varaibles
+var timing: bool = false
+var time = 0
+
+
 # Peer for server/client
 var socketUDP: PacketPeerUDP = PacketPeerUDP.new()
 # Thread to run on.
 var thread
 
-var host_ip: String = '127.0.0.1'
+var host_ip: String = '127.0.0.1'  # Machine own ip address
+var subnet_mask: String = ''  # Used to get prefix
+var prefix = ''  # Prefix of every ip in network
 
 # Constants
 # Port to host on - 
@@ -16,7 +23,19 @@ const MAX_PLAYERS = 4
 
 
 func _ready():
+	# Getting the local ip
 	host_ip = get_local_ip()
+	
+	var output = []
+	# Getting subnet mask
+	OS.execute('ipconfig', [], true, output)
+	for s in output:
+		if not 'Subnet Mask' in s:
+			continue
+		subnet_mask = s.split('Subnet Mask')[1].split(': ')[1].split('\n')[0]
+	
+	# Setting up prefix (only if connectd + firewall is off):
+	prefix = get_prefix(host_ip, subnet_mask)
 
 
 # Responsible for hosting a server and managing connections
@@ -42,13 +61,24 @@ func server():
 func client():
 	print('Initializing client...')
 	socketUDP.listen(CLIENT_PORT, host_ip)
+	# Looking for a server - 
 	socketUDP.set_broadcast_enabled(true)  # Enabling broadcasting
 	socketUDP.set_dest_address('255.255.255.255', SERVER_PORT)
 	# Sending broadcast packet to discover. (3 times)
 	for i in range(3):
 		socketUDP.put_packet(string_to_byte_array('DISC'))
-	var done = false
+	# Sending a request to individual incase broadcasting is disabled
+	var ip_list = get_network_ips(prefix)
+	for each in ip_list:
+		socketUDP.set_dest_address(each, SERVER_PORT)  # Changine address
+		# Checking server
+		wait(0.05) # Delay between requests
+		for i in range(3):
+			socketUDP.put_packet(string_to_byte_array('DISC'))
+
+	
 	# Wating for an answer
+	var done = false
 	while not done:
 		if socketUDP.get_available_packet_count() > 0:
 			var array_bytes = socketUDP.get_packet()
@@ -60,7 +90,7 @@ func client():
 
 
 # Handle each client individually
-func handle_client(ip: String, port: int):
+func handle_client(ip: String, port: int, data):
 	pass
 
 
@@ -95,9 +125,50 @@ func string_to_byte_array(string: String):
 func get_local_ip() -> String:
 	var ip
 	for address in IP.get_local_addresses():
+		#print(address)
 		if (address.split('.').size() == 4) and address.split('.')[0] != '127':
 			ip=address
 	return ip
+
+
+func get_network_ips(prefix: String):
+	# Gets all networks valid server ips (arping)
+	var ip_lst = []
+	var output = []
+	OS.execute('arp', ['-a'], true, output)
+	for section in output:
+		section = section.split('\n')
+		for line in section:
+			if '  ' + prefix in line:
+				var current_ip: String = line.split(' ')[2]
+				ip_lst.append(current_ip)
+	return ip_lst
+
+
+func get_prefix(ip: String, submask: String) -> String:
+	var h_ip: Array = ip.split('.')
+	var sub_mask: Array = submask.split('.')
+	var cnt: int = 0  # While counter
+	var prefix = ''  # result
+	if ip != '127.0.0.1':  # Connection/Firewall check
+		while cnt < h_ip.size():  # Going over each num
+			if sub_mask[cnt] != '255':
+				cnt += 1
+				continue
+			prefix += '.' + h_ip[cnt]
+			cnt += 1
+		prefix = prefix.substr(1)  # Getting rid of first dot.
+	return prefix
+	
+
+func wait(seconds: float):
+	# Timer - uses _physics_proccess to count time and delay.
+	time = 0
+	timing = true
+	while time <= seconds:
+		pass
+	timing = false
+	time = 0
 	
 	
 class User:
@@ -125,6 +196,12 @@ class User:
 		for letter in string:
 			array.append(ord(letter))
 		return array
+		
+		
+func _physics_process(delta):
+	# Time Counter
+	if timing == true:
+		time += delta
 
 
 
