@@ -23,16 +23,15 @@ const MAX_PLAYERS = 4
 
 
 func _ready():
-	# Getting the local ip
-	host_ip = get_local_ip()
-	
 	var output = []
-	# Getting subnet mask
+	# Getting subnet mask + ip
 	OS.execute('ipconfig', [], true, output)
 	for s in output:
-		if not 'Subnet Mask' in s:
+		if not 'Subnet Mask' in s or not '  IPv4 Address' in s:
 			continue
 		subnet_mask = s.split('Subnet Mask')[1].split(': ')[1].split('\n')[0]
+		host_ip = s.split('  IPv4 Address')[1].split(': ')[1].split('\n')[0]
+		print('Host ip: ' + host_ip)
 	
 	# Setting up prefix (only if connectd + firewall is off):
 	prefix = get_prefix(host_ip, subnet_mask)
@@ -121,14 +120,6 @@ func string_to_byte_array(string: String):
 	for letter in string:
 		array.append(ord(letter))
 	return array
-	
-func get_local_ip() -> String:
-	var ip
-	for address in IP.get_local_addresses():
-		#print(address)
-		if (address.split('.').size() == 4) and address.split('.')[0] != '127':
-			ip=address
-	return ip
 
 
 func get_network_ips(prefix: String):
@@ -202,6 +193,3 @@ func _physics_process(delta):
 	# Time Counter
 	if timing == true:
 		time += delta
-
-
-
