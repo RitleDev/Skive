@@ -1,5 +1,12 @@
 extends Node
 
+# Audio
+var effect: AudioEffectCapture
+var playback: AudioStreamPlaybackResampled = null
+var recording
+var is_recording = false
+
+
 # Time varaibles
 var timing: bool = false
 var time = 0
@@ -35,6 +42,12 @@ func _ready():
 	
 	# Setting up prefix (only if connectd + firewall is off):
 	prefix = get_prefix(host_ip, subnet_mask)
+	
+	playback = $AudioStreamPlayer.get_stream_playback()
+	$AudioStreamPlayer.play()
+	print(1)
+	#$AudioStreamPlayer.stream.mix_rate = 32000.0
+	#get_node('AudioStreamRecord').stream.mix_rate = 32000.0
 
 
 # Responsible for hosting a server and managing connections
@@ -46,12 +59,12 @@ func server():
 	while true:
 		if socketUDP.get_available_packet_count() > 0:
 			var array_bytes = socketUDP.get_packet()
-			print(array_bytes)
+			#print(array_bytes)
 			var ip = socketUDP.get_packet_ip()
 			var port = socketUDP.get_packet_port()
 			print('From: <', ip, ', ', String(port), '>')
 			var data = byte_array_to_string(array_bytes)
-			print(data)
+			#print(data)
 			var response = server_protocol(data)
 			socketUDP.set_dest_address(ip, port)
 			socketUDP.put_packet(string_to_byte_array(response))
@@ -102,6 +115,10 @@ func server_protocol(data):
 func _on_ServerButton_pressed():
 	thread = Thread.new()
 	thread.start(self, 'server')
+	var idx = AudioServer.get_bus_index("Record")
+	effect = AudioServer.get_bus_effect(idx,1)
+	#effect.set_recording_active(true)
+	is_recording = true
 	
 func _on_ClientButton_pressed():
 	thread = Thread.new()
@@ -193,3 +210,26 @@ func _physics_process(delta):
 	# Time Counter
 	if timing == true:
 		time += delta
+
+
+func _on_SendAudioTimer_timeout():
+	if is_recording:
+		var t = Thread.new()
+		t.start(self, 'play_audio', recording)
+		#playback.push_buffer(recording)
+		#print('1')
+		#$AudioStreamPlayer.stream = null
+		#playback = $AudioStreamPlayer.get_stream_playback()
+		
+		#print('ay')
+		
+		
+func play_audio(data):
+	#print(recording.size())
+		recording = effect.get_buffer(effect.get_frames_available())
+		print(recording.size())
+		#effect.clear_buffer()
+		if recording.size() > 0:
+			for frame in recording:
+				playback.push_frame(frame)
+	
