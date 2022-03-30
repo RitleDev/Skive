@@ -43,11 +43,6 @@ func _ready():
 	# Setting up prefix (only if connectd + firewall is off):
 	prefix = get_prefix(host_ip, subnet_mask)
 	
-	playback = $AudioStreamPlayer.get_stream_playback()
-	$AudioStreamPlayer.play()
-	print(1)
-	#$AudioStreamPlayer.stream.mix_rate = 32000.0
-	#get_node('AudioStreamRecord').stream.mix_rate = 32000.0
 
 
 # Responsible for hosting a server and managing connections
@@ -117,6 +112,9 @@ func _on_ServerButton_pressed():
 	thread.start(self, 'server')
 	var idx = AudioServer.get_bus_index("Record")
 	effect = AudioServer.get_bus_effect(idx,1)
+	# Setting playback stream
+	playback = $AudioStreamPlayer.get_stream_playback()
+	$AudioStreamPlayer.play()
 	#effect.set_recording_active(true)
 	is_recording = true
 	
@@ -216,18 +214,18 @@ func _on_SendAudioTimer_timeout():
 	if is_recording:
 		var t = Thread.new()
 		t.start(self, 'play_audio', recording)
-		#playback.push_buffer(recording)
-		#print('1')
-		#$AudioStreamPlayer.stream = null
-		#playback = $AudioStreamPlayer.get_stream_playback()
-		
-		#print('ay')
 		
 		
 func play_audio(data):
 	#print(recording.size())
 		recording = effect.get_buffer(effect.get_frames_available())
 		print(recording.size())
+		"""
+		Converting example:
+		print('1')
+		var pb = PoolByteArray(Array(recording))
+		print(PoolVector2Array(Array(pb)).size())
+		print('2')"""
 		#effect.clear_buffer()
 		if recording.size() > 0:
 			for frame in recording:
