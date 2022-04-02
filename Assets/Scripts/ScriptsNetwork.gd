@@ -2,20 +2,32 @@ extends Node
 
 # Audio
 var effect: AudioEffectCapture
-var playback: AudioStreamPlaybackResampled = null
+var playback: AudioStreamPlayback = null
 var recording
 var is_recording = false
+var audio_id: int = 1  # Count audio messages sent
+var current_sound: PoolVector2Array
+var last_sound: PoolVector2Array
 
 
 # Time varaibles
 var timing: bool = false
 var time = 0
 
+# Selected server details (client protocol uses this)
+var ser_ip = ''
+var ser_port = null
+var last_id = 0  # Prevent overrides of audio
+
 
 # Peer for server/client
 var socketUDP: PacketPeerUDP = PacketPeerUDP.new()
 # Thread to run on.
 var thread
+
+var sound_thread
+
+var users = {}  # Dict to hold all users/Key = IP(String): Value = User
 
 var host_ip: String = '127.0.0.1'  # Machine own ip address
 var subnet_mask: String = ''  # Used to get prefix
@@ -25,8 +37,6 @@ var prefix = ''  # Prefix of every ip in network
 # Port to host on - 
 const SERVER_PORT: int = 7373
 const CLIENT_PORT: int = 3737
-
-const MAX_PLAYERS = 4
 
 
 func _ready():
@@ -60,7 +70,7 @@ func server():
 			print('From: <', ip, ', ', String(port), '>')
 			var data = byte_array_to_string(array_bytes)
 			#print(data)
-			var response = server_protocol(data)
+			var response = server_protocol(data, ip, port)
 			socketUDP.set_dest_address(ip, port)
 			socketUDP.put_packet(string_to_byte_array(response))
 
@@ -73,7 +83,7 @@ func client():
 	socketUDP.set_dest_address('255.255.255.255', SERVER_PORT)
 	# Sending broadcast packet to discover. (3 times)
 	for i in range(3):
-		socketUDP.put_packet(string_to_byte_array('DISC'))
+		socketUDP.put_packet(string_to_byte_array('DISC#'))
 	# Sending a request to individual incase broadcasting is disabled
 	var ip_list = get_network_ips(prefix)
 	for each in ip_list:
@@ -81,29 +91,66 @@ func client():
 		# Checking server
 		wait(0.05) # Delay between requests
 		for i in range(3):
-			socketUDP.put_packet(string_to_byte_array('DISC'))
+			socketUDP.put_packet(string_to_byte_array('DISC#'))
 
 	
 	# Wating for an answer
+	# Starting communication with a single server
 	var done = false
 	while not done:
 		if socketUDP.get_available_packet_count() > 0:
 			var array_bytes = socketUDP.get_packet()
 			var ip = socketUDP.get_packet_ip()
 			var port = socketUDP.get_packet_port()
-			if byte_array_to_string(array_bytes) == 'ACKN':
+			if byte_array_to_string(array_bytes) == 'ACKN#' and ser_ip == '':
 				print('Server is: <', ip, ', ', String(port), '>')
-				done = true
+				ser_ip = ip
+				ser_port = port
+				#done = true
+			else:
+				var t2 = Thread.new()
+				t2.start(self, 'client_protocol', [array_bytes, ip, port])
+				client_protocol(array_bytes, ip, port)
+	
+				
+
+func client_protocol(data: PoolByteArray, ip: String, port: int):
+	# Exiting if got a message from a different source
+	if ip != ser_ip or port != ser_port:
+		return
+	
+	# Refactoring data to match needs
+	# Decompressing message and converting to string
+	#print('Got> ' + String(data.size()) + ' ID > ' + String(last_id))
+	var s_data = byte_array_to_string(data.decompress_dynamic(1000000, 3))
+	var splited = s_data.split('#')
+	var msg_code = splited[0]  # Getting message code
+	var msg_id = int(splited[1])  # Getting message ID (prevent override)
+	#print('Accepted> ' + String(data.size()) + ' Code ' + msg_code)
+	var msg = s_data.substr(s_data.find('###') + 3)
+	
+	if msg_id <= last_id:  # Ignoring message which already got handled
+		return
+	print('Got ID> ' + String(msg_id))
+	last_id = msg_id  # Setting new id
+	if msg_code == 'SEND':
+		msg = parse_json(msg)
+		sound_thread = Thread.new()
+		msg = parse_vector2(msg)
+		sound_thread.start(self, 'play_audio', msg)
+		current_sound = msg
+		#play_audio(PoolVector2Array(msg))
+		current_sound = msg
+		return
+	
 
 
-# Handle each client individually
-func handle_client(ip: String, port: int, data):
-	pass
-
-
-func server_protocol(data):
-	if data == 'DISC':  # Discover
-		return 'ACKN'  # Acknowledge
+func server_protocol(data, ip, port):
+	if data == 'DISC#':  # Discover
+		if not users.has(ip):
+			users[ip] = User.new('User', ip, port, socketUDP)
+			#print(socketUDP)
+		return 'ACKN#'  # Acknowledge
 	else: return null
 
 # Starts a server on button click
@@ -121,6 +168,8 @@ func _on_ServerButton_pressed():
 func _on_ClientButton_pressed():
 	thread = Thread.new()
 	thread.start(self, 'client')
+	playback = $AudioStreamPlayer.get_stream_playback()
+	$AudioStreamPlayer.play()
 
 # Converts an array of ints into a string. (using ASCII)
 static func byte_array_to_string(array) -> String:
@@ -131,7 +180,7 @@ static func byte_array_to_string(array) -> String:
 
 # Opposite of byte_array_to_string
 func string_to_byte_array(string: String):
-	var array = []
+	var array: PoolByteArray = []
 	for letter in string:
 		array.append(ord(letter))
 	return array
@@ -178,10 +227,14 @@ func wait(seconds: float):
 	
 	
 class User:
-	func _init(name: String, position: Vector2, ip: String, port: int, 
+	var name
+	var ip
+	var port
+	var socketUDP
+	
+	func _init(name: String, ip: String, port: int, 
 	socketUDP: PacketPeerUDP):
 		self.name = name
-		self.position = position
 		self.ip = ip
 		self.port = port
 		self.socketUDP = socketUDP
@@ -195,6 +248,9 @@ class User:
 		elif typeof(data) == 4:  # String
 			self.socketUDP.set_dest_address(self.ip, self.port)
 			self.socketUDP.put_packet(string_to_byte_array(data))
+		else:
+			self.socketUDP.set_dest_address(self.ip, self.port)
+			self.socketUDP.put_packet(data)
 	
 	# Opposite of byte_array_to_string
 	static func string_to_byte_array(string: String):
@@ -212,22 +268,42 @@ func _physics_process(delta):
 
 func _on_SendAudioTimer_timeout():
 	if is_recording:
-		var t = Thread.new()
-		t.start(self, 'play_audio', recording)
-		
-		
-func play_audio(data):
-	#print(recording.size())
 		recording = effect.get_buffer(effect.get_frames_available())
-		print(recording.size())
-		"""
-		Converting example:
-		print('1')
-		var pb = PoolByteArray(Array(recording))
-		print(PoolVector2Array(Array(pb)).size())
-		print('2')"""
-		#effect.clear_buffer()
-		if recording.size() > 0:
-			for frame in recording:
-				playback.push_frame(frame)
+		# Getting file ready to send in network. (using json & gzip)
+		var d: PoolByteArray = string_to_byte_array(to_json(recording))
+		var to_send: PoolByteArray = string_to_byte_array('SEND#' + String(audio_id) + '###')
+		audio_id += 1
+		to_send.append_array(d)
+		to_send = to_send.compress(3)
+		#print('Sent> ' + String(to_send.size()) + ' ID > ' + String(audio_id))
+		for user in users:
+			users[user].send_packet(to_send)
+		
+		if current_sound != last_sound:
+			var t = Thread.new()
+			t.start(self, 'play_audio', current_sound)
+		last_sound = current_sound
+		
+		
+func play_audio(recording):
+	#effect.clear_buffer()
+	#print(recording.size())
+	if recording.size() > 0:
+		for frame in recording:
+			playback.push_frame(frame)
+	#print('good')
+	
+	
+func parse_vector2(data: String):
+	data.erase(data.find("["),1)
+	data.erase(data.find("]"),1)
+	var s_data = data.split('),')
+	var result: PoolVector2Array = []
+	for cords in s_data:
+		cords.erase(cords.find("("),1) # Erasing first bracket
+		cords = cords.split(',')
+		result.append(Vector2(float(cords[0]), float(cords[1])))
+	return result
+		
+		
 	
