@@ -40,6 +40,7 @@ const CLIENT_PORT: int = 3737
 
 
 func _ready():
+	OS.low_processor_usage_mode = true  # Saving CPU usage and power.
 	var output = []
 	# Getting subnet mask + ip
 	OS.execute('ipconfig', [], true, output)
