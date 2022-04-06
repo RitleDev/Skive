@@ -5,7 +5,7 @@ var effect: AudioEffectCapture
 var playback: AudioStreamPlayback = null
 var recording
 var is_recording = false
-var audio_id: int = 1  # Count audio messages sent
+var audio_id: int = 1  # Count audio messages sent TODO: make it not infinty
 var current_sound: PoolVector2Array
 var last_sound: PoolVector2Array
 
@@ -52,7 +52,6 @@ func _ready():
 	
 	# Setting up prefix (only if connectd + firewall is off):
 	prefix = get_prefix(host_ip, subnet_mask)
-	
 
 
 # Responsible for hosting a server and managing connections
@@ -89,7 +88,6 @@ func client():
 	for each in ip_list:
 		socketUDP.set_dest_address(each, SERVER_PORT)  # Changine address
 		# Checking server
-		wait(0.05) # Delay between requests
 		for i in range(3):
 			socketUDP.put_packet(string_to_byte_array('DISC#'))
 
@@ -97,6 +95,8 @@ func client():
 	# Wating for an answer
 	# Starting communication with a single server
 	var done = false
+	var threads = []
+	var thread_counter: int = 0
 	while not done:
 		if socketUDP.get_available_packet_count() > 0:
 			var array_bytes = socketUDP.get_packet()
@@ -108,38 +108,42 @@ func client():
 				ser_port = port
 				#done = true
 			else:
-				var t2 = Thread.new()
-				t2.start(self, 'client_protocol', [array_bytes, ip, port])
-				client_protocol(array_bytes, ip, port)
-	
-				
+				#client_protocol(array_bytes, ip ,port)
+				threads.append(Thread.new())
+				threads[thread_counter].start(self, 'client_protocol', [array_bytes, ip, port])
+				thread_counter += 1
 
-func client_protocol(data: PoolByteArray, ip: String, port: int):
+
+func client_protocol(args: Array):
+	var data: PoolByteArray = args[0]
+	var ip: String = args[1]
+	var port: int = args[2]
 	# Exiting if got a message from a different source
 	if ip != ser_ip or port != ser_port:
 		return
 	
 	# Refactoring data to match needs
 	# Decompressing message and converting to string
-	#print('Got> ' + String(data.size()) + ' ID > ' + String(last_id))
-	var s_data = byte_array_to_string(data.decompress_dynamic(1000000, 3))
-	var splited = s_data.split('#')
-	var msg_code = splited[0]  # Getting message code
-	var msg_id = int(splited[1])  # Getting message ID (prevent override)
-	#print('Accepted> ' + String(data.size()) + ' Code ' + msg_code)
-	var msg = s_data.substr(s_data.find('###') + 3)
+	# Index when protocol stops being ascii and becomes binary
+	var type_index = find_triple_hashtag(data)
+	var splitted = data.subarray(0, type_index)
+	splitted = byte_array_to_string(splitted).split('#')
+	var msg_code = splitted[0]  # Getting message code
+	var msg_id = int(splitted[1])  # Getting message ID (prevent override)
+	var sound_length = int(splitted[2])
+	var msg = data.subarray(type_index + 3, -1).decompress(sound_length, 3)
+	#print('Code:', msg_code, ' ID:', msg_id, ' Length:', sound_length)
 	
 	if msg_id <= last_id:  # Ignoring message which already got handled
 		return
-	print('Got ID> ' + String(msg_id))
+	#print('Got ID> ' + String(msg_id))
 	last_id = msg_id  # Setting new id
 	if msg_code == 'SEND':
-		msg = parse_json(msg)
-		sound_thread = Thread.new()
-		msg = parse_vector2(msg)
-		sound_thread.start(self, 'play_audio', msg)
-		current_sound = msg
-		#play_audio(PoolVector2Array(msg))
+		#msg = parse_json(msg)
+		#sound_thread = Thread.new()
+		msg = parse_vector2(byte_array_to_string(msg))
+		play_audio(msg)
+		#sound_thread.start(self, 'play_audio', msg)
 		current_sound = msg
 		return
 	
@@ -153,6 +157,7 @@ func server_protocol(data, ip, port):
 		return 'ACKN#'  # Acknowledge
 	else: return null
 
+
 # Starts a server on button click
 func _on_ServerButton_pressed():
 	thread = Thread.new()
@@ -164,19 +169,19 @@ func _on_ServerButton_pressed():
 	$AudioStreamPlayer.play()
 	#effect.set_recording_active(true)
 	is_recording = true
-	
+
+
 func _on_ClientButton_pressed():
 	thread = Thread.new()
 	thread.start(self, 'client')
 	playback = $AudioStreamPlayer.get_stream_playback()
 	$AudioStreamPlayer.play()
 
+
 # Converts an array of ints into a string. (using ASCII)
-static func byte_array_to_string(array) -> String:
-	var result: String = ''
-	for item in array:
-		result += char(item)
-	return result
+func byte_array_to_string(array: PoolByteArray) -> String:
+	return array.get_string_from_ascii()  # TODO: Change program syntax.
+
 
 # Opposite of byte_array_to_string
 func string_to_byte_array(string: String):
@@ -214,7 +219,7 @@ func get_prefix(ip: String, submask: String) -> String:
 			cnt += 1
 		prefix = prefix.substr(1)  # Getting rid of first dot.
 	return prefix
-	
+
 
 func wait(seconds: float):
 	# Timer - uses _physics_proccess to count time and delay.
@@ -224,8 +229,8 @@ func wait(seconds: float):
 		pass
 	timing = false
 	time = 0
-	
-	
+
+
 class User:
 	var name
 	var ip
@@ -254,37 +259,32 @@ class User:
 	
 	# Opposite of byte_array_to_string
 	static func string_to_byte_array(string: String):
-		var array = []
-		for letter in string:
-			array.append(ord(letter))
-		return array
-		
-		
-func _physics_process(delta):
-	# Time Counter
-	if timing == true:
-		time += delta
+		return string.to_ascii()  # TODO : Change program syntax.
 
 
 func _on_SendAudioTimer_timeout():
 	if is_recording:
 		recording = effect.get_buffer(effect.get_frames_available())
 		# Getting file ready to send in network. (using json & gzip)
-		var d: PoolByteArray = string_to_byte_array(to_json(recording))
-		var to_send: PoolByteArray = string_to_byte_array('SEND#' + String(audio_id) + '###')
+		var js_rec = to_json(recording)
+		var d: PoolByteArray = string_to_byte_array(js_rec).compress(3)
+		# Message format looks like this:
+		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)###
+		var to_send: PoolByteArray = string_to_byte_array('SEND#' + String(audio_id) + '#')
+		to_send.append_array(string_to_byte_array(String(string_to_byte_array(String(js_rec)).size()) + '###'))
 		audio_id += 1
 		to_send.append_array(d)
-		to_send = to_send.compress(3)
 		#print('Sent> ' + String(to_send.size()) + ' ID > ' + String(audio_id))
 		for user in users:
 			users[user].send_packet(to_send)
 		
-		if current_sound != last_sound:
-			var t = Thread.new()
-			t.start(self, 'play_audio', current_sound)
-		last_sound = current_sound
-		
-		
+		# Play only every 0.1 seconds
+		#if current_sound != last_sound:
+		#	var t = Thread.new()
+		#	t.start(self, 'play_audio', current_sound)
+		#last_sound = current_sound
+
+
 func play_audio(recording):
 	#effect.clear_buffer()
 	#print(recording.size())
@@ -292,8 +292,8 @@ func play_audio(recording):
 		for frame in recording:
 			playback.push_frame(frame)
 	#print('good')
-	
-	
+
+
 func parse_vector2(data: String):
 	data.erase(data.find("["),1)
 	data.erase(data.find("]"),1)
@@ -304,6 +304,19 @@ func parse_vector2(data: String):
 		cords = cords.split(',')
 		result.append(Vector2(float(cords[0]), float(cords[1])))
 	return result
-		
-		
-	
+
+
+func find_triple_hashtag(data: PoolByteArray):
+	var val = ord('#')
+	var state = 0
+	var cnt = 0
+	for v in data:
+		cnt += 1
+		if v == val:
+			state += 1
+		else: state = 0  # reset
+		if state == 3:
+			return cnt - 3
+			
+	# If not found return -1
+	return -1
