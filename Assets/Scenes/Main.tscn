@@ -12,8 +12,8 @@ buffer_length = 0.1
 [node name="Main" type="Node2D"]
 
 [node name="NetworkSetup" type="Control" parent="."]
-margin_right = 1920.0
-margin_bottom = 1080.0
+margin_right = 960.0
+margin_bottom = 540.0
 rect_pivot_offset = Vector2( 960, 540 )
 script = ExtResource( 3 )
 
@@ -22,32 +22,32 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-margin_left = -154.0
-margin_top = 84.0
-margin_right = 154.0
-margin_bottom = 212.0
+margin_left = -95.0
+margin_top = -40.0
+margin_right = 95.0
+margin_bottom = 40.0
 rect_pivot_offset = Vector2( 154, 64 )
 custom_fonts/font = ExtResource( 5 )
 text = "Server"
 
 [node name="ClientButton" type="Button" parent="NetworkSetup"]
 anchor_left = 0.5
-anchor_top = 0.5
+anchor_top = 1.0
 anchor_right = 0.5
-anchor_bottom = 0.5
-margin_left = -154.0
-margin_top = 228.0
-margin_right = 154.0
-margin_bottom = 356.0
+anchor_bottom = 1.0
+margin_left = -95.0
+margin_top = -218.0
+margin_right = 95.0
+margin_bottom = -138.0
 rect_pivot_offset = Vector2( 154, 64 )
 custom_fonts/font = ExtResource( 5 )
 text = "Client"
 
 [node name="Button" type="Button" parent="NetworkSetup"]
-margin_left = 30.0001
-margin_top = 966.0
-margin_right = 285.0
-margin_bottom = 1094.0
+margin_left = 19.0
+margin_top = 468.0
+margin_right = 180.0
+margin_bottom = 548.0
 rect_scale = Vector2( 0.7, 0.7 )
 custom_fonts/font = ExtResource( 5 )
 text = "QUIT"
@@ -57,7 +57,7 @@ script = ExtResource( 1 )
 stream = SubResource( 2 )
 
 [node name="Camera2D" type="Camera2D" parent="."]
-position = Vector2( 960, 540 )
+position = Vector2( 480, 270 )
 current = true
 
 [node name="SendAudioTimer" type="Timer" parent="."]

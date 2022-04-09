@@ -14,6 +14,10 @@ var last_sound: PoolVector2Array
 var timing: bool = false
 var time = 0
 
+# Client server loop booleans
+var client_runnning: bool = false
+var server_runnning: bool = false
+
 # Selected server details (client protocol uses this)
 var ser_ip = ''
 var ser_port = null
@@ -61,18 +65,9 @@ func server():
 	var status = socketUDP.listen(SERVER_PORT, host_ip)
 	if status == 0:
 		print('Server listen OK')
-	while true:
-		if socketUDP.get_available_packet_count() > 0:
-			var array_bytes = socketUDP.get_packet()
-			#print(array_bytes)
-			var ip = socketUDP.get_packet_ip()
-			var port = socketUDP.get_packet_port()
-			print('From: <', ip, ', ', String(port), '>')
-			var data = byte_array_to_string(array_bytes)
-			#print(data)
-			var response = server_protocol(data, ip, port)
-			socketUDP.set_dest_address(ip, port)
-			socketUDP.put_packet(string_to_byte_array(response))
+	else:
+		print('Server listen failed, error code: ', status)
+	server_runnning = true
 
 
 func client():
@@ -92,27 +87,7 @@ func client():
 		for i in range(3):
 			socketUDP.put_packet(string_to_byte_array('DISC#'))
 
-	
-	# Wating for an answer
-	# Starting communication with a single server
-	var done = false
-	var threads = []
-	var thread_counter: int = 0
-	while not done:
-		if socketUDP.get_available_packet_count() > 0:
-			var array_bytes = socketUDP.get_packet()
-			var ip = socketUDP.get_packet_ip()
-			var port = socketUDP.get_packet_port()
-			if byte_array_to_string(array_bytes) == 'ACKN#' and ser_ip == '':
-				print('Server is: <', ip, ', ', String(port), '>')
-				ser_ip = ip
-				ser_port = port
-				#done = true
-			else:
-				#client_protocol(array_bytes, ip ,port)
-				threads.append(Thread.new())
-				threads[thread_counter].start(self, 'client_protocol', [array_bytes, ip, port])
-				thread_counter += 1
+	client_runnning = true  # Starting client loop
 
 
 func client_protocol(args: Array):
@@ -186,10 +161,7 @@ func byte_array_to_string(array: PoolByteArray) -> String:
 
 # Opposite of byte_array_to_string
 func string_to_byte_array(string: String):
-	var array: PoolByteArray = []
-	for letter in string:
-		array.append(ord(letter))
-	return array
+	return string.to_ascii()
 
 
 func get_network_ips(prefix: String):
@@ -222,16 +194,6 @@ func get_prefix(ip: String, submask: String) -> String:
 	return prefix
 
 
-func wait(seconds: float):
-	# Timer - uses _physics_proccess to count time and delay.
-	time = 0
-	timing = true
-	while time <= seconds:
-		pass
-	timing = false
-	time = 0
-
-
 class User:
 	var name
 	var ip
@@ -259,22 +221,22 @@ class User:
 			self.socketUDP.put_packet(data)
 	
 	# Opposite of byte_array_to_string
-	static func string_to_byte_array(string: String):
+	func string_to_byte_array(string: String):
 		return string.to_ascii()  # TODO : Change program syntax.
 
 
 func _on_SendAudioTimer_timeout():
 	if is_recording:
 		recording = effect.get_buffer(effect.get_frames_available())
+		effect.clear_buffer()
 		# Getting file ready to send in network. (using json & gzip)
-		var js_rec = to_json(recording)
-		var d: PoolByteArray = string_to_byte_array(js_rec).compress(3)
+		var js_rec = String(recording)
 		# Message format looks like this:
 		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)###
-		var to_send: PoolByteArray = string_to_byte_array('SEND#' + String(audio_id) + '#')
-		to_send.append_array(string_to_byte_array(String(string_to_byte_array(String(js_rec)).size()) + '###'))
+		var to_send:PoolByteArray = string_to_byte_array('SEND#' + String(audio_id) + '#') \
+		+	string_to_byte_array(String(string_to_byte_array(js_rec).size()) + '###') \
+		+ 	string_to_byte_array(js_rec).compress(3)
 		audio_id += 1
-		to_send.append_array(d)
 		#print('Sent> ' + String(to_send.size()) + ' ID > ' + String(audio_id))
 		for user in users:
 			users[user].send_packet(to_send)
@@ -318,6 +280,51 @@ func find_triple_hashtag(data: PoolByteArray):
 		else: state = 0  # reset
 		if state == 3:
 			return cnt - 3
-			
 	# If not found return -1
 	return -1
+
+
+# ------------------------------------------------------------
+# here server and client listens to migrate preformance issues
+# ------------------------------------------------------------
+# <------->
+# Client listen variables:
+var done = false
+var threads = []
+var thread_counter: int = 0
+# <------->
+func _physics_process(delta):
+	# Wating for an answer
+	# communication with a single server
+	if not done and client_runnning == true:
+		if socketUDP.get_available_packet_count() > 0:
+			var array_bytes = socketUDP.get_packet()
+			var ip = socketUDP.get_packet_ip()
+			var port = socketUDP.get_packet_port()
+			if byte_array_to_string(array_bytes) == 'ACKN#' and ser_ip == '':
+				print('Server is: <', ip, ', ', String(port), '>')
+				ser_ip = ip
+				ser_port = port
+				#done = true
+			else:
+				#client_protocol(array_bytes, ip ,port)
+				threads.append(Thread.new())
+				threads[thread_counter].start(self, 'client_protocol', [array_bytes, ip, port])
+				thread_counter += 1
+	# Sever listen loop
+	if server_runnning:
+		if socketUDP.get_available_packet_count() > 0:
+			var array_bytes = socketUDP.get_packet()
+			#print(array_bytes)
+			var ip = socketUDP.get_packet_ip()
+			var port = socketUDP.get_packet_port()
+			print('From: <', ip, ', ', String(port), '>')
+			var data = byte_array_to_string(array_bytes)
+			#print(data)
+			var response = server_protocol(data, ip, port)
+			socketUDP.set_dest_address(ip, port)
+			var type: int = typeof(response)
+			if type == 4:  # Converting to bytes if the message is string only
+				response = string_to_byte_array(response)
+			if type != 0:  # Checking if message isn't null
+				socketUDP.put_packet(response)
