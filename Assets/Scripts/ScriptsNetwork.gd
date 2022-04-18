@@ -272,7 +272,8 @@ func _on_SendAudioTimer_timeout():
 			for user in users:
 				users[user].send_packet(to_send)
 		elif client_runnning:  # Sending data to server if user
-			socketUDP.put_packet(to_send)
+			for i in range(3):
+				socketUDP.put_packet(to_send)
 		
 		# Play only every 0.1 seconds
 		#if current_sound != last_sound:
