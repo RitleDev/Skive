@@ -88,16 +88,17 @@ func client():
 			socketUDP.put_packet(string_to_byte_array('DISC#'))
 
 	client_runnning = true  # Starting client loop
+	is_recording = true
 
 
 func client_protocol(args: Array):
 	var data: PoolByteArray = args[0]
 	var ip: String = args[1]
 	var port: int = args[2]
+	print('server detailes: ', ser_ip, ', ', port)
 	# Exiting if got a message from a different source
 	if ip != ser_ip or port != ser_port:
 		return
-	
 	# Refactoring data to match needs
 	# Decompressing message and converting to string
 	# Index when protocol stops being ascii and becomes binary
@@ -118,7 +119,7 @@ func client_protocol(args: Array):
 		#msg = parse_json(msg)
 		#sound_thread = Thread.new()
 		msg = parse_vector2(byte_array_to_string(msg))
-		play_audio(msg)
+		play_audio(msg, playback)
 		#sound_thread.start(self, 'play_audio', msg)
 		current_sound = msg
 		return
@@ -126,11 +127,38 @@ func client_protocol(args: Array):
 
 
 func server_protocol(data, ip, port):
-	if data == 'DISC#':  # Discover
+	# Processing message: 
+	var type_index = find_triple_hashtag(data)
+	var splitted = data.subarray(0, type_index)
+	splitted = splitted.get_string_from_ascii().split('#')
+	var code = splitted[0]
+	
+	# Handeling message
+	if code == 'DISC':  # Discover
 		if not users.has(ip):
 			users[ip] = User.new('User', ip, port, socketUDP)
 			#print(socketUDP)
-		return 'ACKN#'  # Acknowledge
+		return 'ACKN#'.to_ascii()  # Acknowledge
+	
+	# Playing audio if recieved from a certain user, must be verified
+	elif code == 'SEND':
+		if not users.has(ip):
+			return 'FAIL#'.to_ascii()  # No auth
+		var node: AudioStreamPlayer = get_node_or_null(ip)
+		if node == null:
+			node = AudioStreamPlayer.new()
+			node.stream = AudioStreamGenerator.new()
+			node.stream.buffer_length = 0.1
+			add_child(node)
+			node.name = ip
+			node.play()
+		var pb = node.get_stream_playback()
+		var msg_id = int(splitted[1])  # Getting message ID (prevent override)
+		var sound_length = int(splitted[2])
+		var sound = data.subarray(type_index + 3, -1).decompress(sound_length, 3)
+		play_audio(parse_vector2(sound.get_string_from_ascii()), pb)
+		
+			
 	else: return null
 
 
@@ -150,6 +178,8 @@ func _on_ServerButton_pressed():
 func _on_ClientButton_pressed():
 	thread = Thread.new()
 	thread.start(self, 'client')
+	var idx = AudioServer.get_bus_index("Record")
+	effect = AudioServer.get_bus_effect(idx,1)
 	playback = $AudioStreamPlayer.get_stream_playback()
 	$AudioStreamPlayer.play()
 
@@ -226,7 +256,7 @@ class User:
 
 
 func _on_SendAudioTimer_timeout():
-	if is_recording:
+	if is_recording and (client_runnning or server_runnning):
 		recording = effect.get_buffer(effect.get_frames_available())
 		effect.clear_buffer()
 		# Getting file ready to send in network. (using json & gzip)
@@ -238,8 +268,11 @@ func _on_SendAudioTimer_timeout():
 		+ 	string_to_byte_array(js_rec).compress(3)
 		audio_id += 1
 		#print('Sent> ' + String(to_send.size()) + ' ID > ' + String(audio_id))
-		for user in users:
-			users[user].send_packet(to_send)
+		if server_runnning:  # Sending data to all users if server
+			for user in users:
+				users[user].send_packet(to_send)
+		elif client_runnning:  # Sending data to server if user
+			socketUDP.put_packet(to_send)
 		
 		# Play only every 0.1 seconds
 		#if current_sound != last_sound:
@@ -248,10 +281,10 @@ func _on_SendAudioTimer_timeout():
 		#last_sound = current_sound
 
 
-func play_audio(recording):
+func play_audio(recording, playback):
 	#effect.clear_buffer()
 	#print(recording.size())
-	if recording.size() > 0:
+	if recording != null and recording.size() > 0:
 		for frame in recording:
 			playback.push_frame(frame)
 	#print('good')
@@ -301,30 +334,29 @@ func _physics_process(delta):
 			var array_bytes = socketUDP.get_packet()
 			var ip = socketUDP.get_packet_ip()
 			var port = socketUDP.get_packet_port()
-			if byte_array_to_string(array_bytes) == 'ACKN#' and ser_ip == '':
+			if  byte_array_to_string(array_bytes) == 'ACKN#'  and ser_ip == '':
 				print('Server is: <', ip, ', ', String(port), '>')
 				ser_ip = ip
 				ser_port = port
 				#done = true
-			else:
+			elif ser_ip != '' and ser_port != null:
 				#client_protocol(array_bytes, ip ,port)
+				byte_array_to_string(array_bytes)
 				threads.append(Thread.new())
 				threads[thread_counter].start(self, 'client_protocol', [array_bytes, ip, port])
 				thread_counter += 1
 	# Sever listen loop
 	if server_runnning:
-		if socketUDP.get_available_packet_count() > 0:
+		while socketUDP.get_available_packet_count() > 0:
 			var array_bytes = socketUDP.get_packet()
 			#print(array_bytes)
 			var ip = socketUDP.get_packet_ip()
 			var port = socketUDP.get_packet_port()
-			print('From: <', ip, ', ', String(port), '>')
-			var data = byte_array_to_string(array_bytes)
-			#print(data)
-			var response = server_protocol(data, ip, port)
+			#print('From: <', ip, ', ', String(port), '>')
+			var response = server_protocol(array_bytes, ip, port)
 			socketUDP.set_dest_address(ip, port)
 			var type: int = typeof(response)
 			if type == 4:  # Converting to bytes if the message is string only
 				response = string_to_byte_array(response)
-			if type != 0:  # Checking if message isn't null
+			if response != null:
 				socketUDP.put_packet(response)
