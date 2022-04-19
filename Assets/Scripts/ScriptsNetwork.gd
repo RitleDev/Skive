@@ -28,6 +28,9 @@ var last_id = 0  # Prevent overrides of audio
 var socketUDP: PacketPeerUDP = PacketPeerUDP.new()
 # Thread to run on.
 var thread
+var sound_locker: Mutex
+var create_locker: Mutex
+var player_locker: Mutex
 
 var sound_thread
 
@@ -45,6 +48,9 @@ const CLIENT_PORT: int = 3737
 
 func _ready():
 	OS.low_processor_usage_mode = true  # Saving CPU usage and power.
+	sound_locker = Mutex.new()
+	create_locker = Mutex.new()
+	player_locker = Mutex.new()
 	var output = []
 	# Getting subnet mask + ip
 	OS.execute('ipconfig', [], true, output)
@@ -95,7 +101,7 @@ func client_protocol(args: Array):
 	var data: PoolByteArray = args[0]
 	var ip: String = args[1]
 	var port: int = args[2]
-	print('server detailes: ', ser_ip, ', ', port)
+	#print('server detailes: ', ser_ip, ', ', port)
 	# Exiting if got a message from a different source
 	if ip != ser_ip or port != ser_port:
 		return
@@ -144,19 +150,27 @@ func server_protocol(data, ip, port):
 	elif code == 'SEND':
 		if not users.has(ip):
 			return 'FAIL#'.to_ascii()  # No auth
-		var node: AudioStreamPlayer = get_node_or_null(ip)
+		create_locker.lock()  # Locking when creating a StreamPlayer
+		# Godot doesnt support dots in scene node name
+		var ip_no_dots: String = ip.split('.').join('')
+		var node: AudioStreamPlayer = get_node_or_null(ip_no_dots)  # Finding Audio
 		if node == null:
 			node = AudioStreamPlayer.new()
 			node.stream = AudioStreamGenerator.new()
 			node.stream.buffer_length = 0.1
 			add_child(node)
-			node.name = ip
+			node.name = ip_no_dots
 			node.play()
+		create_locker.unlock()
 		var pb = node.get_stream_playback()
 		var msg_id = int(splitted[1])  # Getting message ID (prevent override)
 		var sound_length = int(splitted[2])
 		var sound = data.subarray(type_index + 3, -1).decompress(sound_length, 3)
-		play_audio(parse_vector2(sound.get_string_from_ascii()), pb)
+		if users[ip].audio_id < msg_id:
+			sound_locker.lock() # Thread lock to avoid confilct
+			users[ip].audio_id = msg_id
+			sound_locker.unlock()
+			play_audio(parse_vector2(sound.get_string_from_ascii()), pb)
 		
 			
 	else: return null
@@ -229,6 +243,7 @@ class User:
 	var ip
 	var port
 	var socketUDP
+	var audio_id
 	
 	func _init(name: String, ip: String, port: int, 
 	socketUDP: PacketPeerUDP):
@@ -236,6 +251,7 @@ class User:
 		self.ip = ip
 		self.port = port
 		self.socketUDP = socketUDP
+		self.audio_id = 0  # First incoming ID is 1
 
 	# Data can be either String or TYPE_RAW_ARRAY(PoolByteArray)
 	# See Docs: https://bit.ly/36c5nZ8 (For all types)
@@ -286,8 +302,10 @@ func play_audio(recording, playback):
 	#effect.clear_buffer()
 	#print(recording.size())
 	if recording != null and recording.size() > 0:
+		player_locker.lock()
 		for frame in recording:
 			playback.push_frame(frame)
+		player_locker.unlock()
 	#print('good')
 
 
