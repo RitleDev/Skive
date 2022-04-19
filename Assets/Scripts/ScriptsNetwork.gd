@@ -47,7 +47,6 @@ const CLIENT_PORT: int = 3737
 
 
 func _ready():
-	OS.low_processor_usage_mode = true  # Saving CPU usage and power.
 	sound_locker = Mutex.new()
 	create_locker = Mutex.new()
 	player_locker = Mutex.new()
