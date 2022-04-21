@@ -321,7 +321,7 @@ func parse_vector2(data: String):
 
 
 func find_triple_hashtag(data: PoolByteArray):
-	var val = ord('#')
+	var val = 35  # ord('#')
 	var state = 0
 	var cnt = 0
 	for v in data:
@@ -336,7 +336,7 @@ func find_triple_hashtag(data: PoolByteArray):
 
 
 # ------------------------------------------------------------
-# here server and client listens to migrate preformance issues
+# here server and client listens to migrate performance issues
 # ------------------------------------------------------------
 # <------->
 # Client listen variables:
