@@ -28,13 +28,16 @@ var last_id = 0  # Prevent overrides of audio
 var socketUDP: PacketPeerUDP = PacketPeerUDP.new()
 # Thread to run on.
 var thread
-var sound_locker: Mutex
-var create_locker: Mutex
-var player_locker: Mutex
+var sound_locker: Mutex  # This is used to track msg ID and avoid confilct.
+var create_locker: Mutex  # This is used when creating users and AudioStreams
+var player_locker: Mutex  # This is used to prevent Audio collisions.
+var user_id_counter: int  # This is used to give each user its own ID.
 
 var sound_thread
 
 var users = {}  # Dict to hold all users/Key = IP(String): Value = User
+
+var id_users = {}  # Dict to hold all users id, audio ids (user_id:audio_id)
 
 var host_ip: String = '127.0.0.1'  # Machine own ip address
 var subnet_mask: String = ''  # Used to get prefix
@@ -50,9 +53,11 @@ func _ready():
 	sound_locker = Mutex.new()
 	create_locker = Mutex.new()
 	player_locker = Mutex.new()
+	user_id_counter = 1  # Server is taking ID -> 0
 	var output = []
 	# Getting subnet mask + ip
-	OS.execute('ipconfig', [], true, output)
+# warning-ignore:unused_variable
+	var result_code = OS.execute('ipconfig', [], true, output)
 	for s in output:
 		if not 'Subnet Mask' in s or not '  IPv4 Address' in s:
 			continue
@@ -77,11 +82,14 @@ func server():
 
 func client():
 	print('Initializing client...')
+# warning-ignore:return_value_discarded
 	socketUDP.listen(CLIENT_PORT, host_ip)
 	# Looking for a server - 
 	socketUDP.set_broadcast_enabled(true)  # Enabling broadcasting
+# warning-ignore:return_value_discarded
 	socketUDP.set_dest_address('255.255.255.255', SERVER_PORT)
 	# Sending broadcast packet to discover. (3 times)
+# warning-ignore:unused_variable
 	for i in range(3):
 		socketUDP.put_packet(string_to_byte_array('DISC#'))
 	# Sending a request to individual incase broadcasting is disabled
@@ -100,6 +108,8 @@ func client_protocol(args: Array):
 	var data: PoolByteArray = args[0]
 	var ip: String = args[1]
 	var port: int = args[2]
+	var thread_id:int = args[3]
+	call_deferred('end_of_thread', thread_id)
 	#print('server detailes: ', ser_ip, ', ', port)
 	# Exiting if got a message from a different source
 	if ip != ser_ip or port != ser_port:
@@ -111,25 +121,35 @@ func client_protocol(args: Array):
 	var splitted = data.subarray(0, type_index)
 	splitted = byte_array_to_string(splitted).split('#')
 	var msg_code = splitted[0]  # Getting message code
-	var msg_id = int(splitted[1])  # Getting message ID (prevent override)
-	var sound_length = int(splitted[2])
-	var msg = data.subarray(type_index + 3, -1).decompress(sound_length, 3)
 	#print('Code:', msg_code, ' ID:', msg_id, ' Length:', sound_length)
 	
-	if msg_id <= last_id:  # Ignoring message which already got handled
-		return
-	#print('Got ID> ' + String(msg_id))
-	last_id = msg_id  # Setting new id
 	if msg_code == 'SEND':
-		#msg = parse_json(msg)
-		#sound_thread = Thread.new()
-		msg = parse_vector2(byte_array_to_string(msg))
-		play_audio(msg, playback)
-		#sound_thread.start(self, 'play_audio', msg)
-		current_sound = msg
+		var msg_id = int(splitted[1])  # Getting message ID (prevent override)
+		var sound_length = int(splitted[2])
+		var user_id = int(splitted[3])
+		var msg = data.subarray(type_index + 3, -1).decompress(sound_length, 3)
+		# If no such user exist create new Audio Stream
+		create_locker.lock()
+		if not user_id in id_users:
+			var node = AudioStreamPlayer.new()
+			node.stream = AudioStreamGenerator.new()
+			node.stream.buffer_length = 0.1
+			add_child(node)
+			node.name = String(user_id)
+			node.play()
+			id_users[user_id] = 0
+		create_locker.unlock()
+		var node: AudioStreamPlayer = get_node_or_null(String(user_id))
+		var pb = node.get_stream_playback()
+		# If message id is smaller than the last id dont play the audio
+		if msg_id <= id_users[user_id]:
+			return
+		
+		sound_locker.lock()  # Thread lock to avoid confilct
+		id_users[user_id] = msg_id
+		sound_locker.unlock()
+		play_audio(parse_vector2(msg.get_string_from_ascii()), pb)
 		return
-	
-
 
 func server_protocol(data, ip, port):
 	# Processing message: 
@@ -141,7 +161,10 @@ func server_protocol(data, ip, port):
 	# Handeling message
 	if code == 'DISC':  # Discover
 		if not users.has(ip):
-			users[ip] = User.new('User', ip, port, socketUDP)
+			create_locker.lock()  # Locking to prevent data collision
+			users[ip] = User.new('User', ip, port, socketUDP, user_id_counter)
+			user_id_counter += 1
+			create_locker.unlock()
 			#print(socketUDP)
 		return 'ACKN#'.to_ascii()  # Acknowledge
 	
@@ -166,10 +189,23 @@ func server_protocol(data, ip, port):
 		var sound_length = int(splitted[2])
 		var sound = data.subarray(type_index + 3, -1).decompress(sound_length, 3)
 		if users[ip].audio_id < msg_id:
-			sound_locker.lock() # Thread lock to avoid confilct
+			sound_locker.lock()  # Thread lock to avoid confilct
 			users[ip].audio_id = msg_id
 			sound_locker.unlock()
+			# TODO - play with threads.
 			play_audio(parse_vector2(sound.get_string_from_ascii()), pb)
+			# After playing sending to all other clients:
+			# Creating the new message
+			var sending = ('SEND#' + String(msg_id) + '#' \
+			+ String(sound_length) + '#' + String(users[ip].id) \
+			+ '###').to_ascii()
+			# Appeniding unziped audio
+			sending.append_array(data.subarray(type_index + 3, -1))
+			# Redirecting data to all users
+			for user in users:
+				if users[user].id != users[ip].id:
+					for i in range(3):
+						socketUDP.put_packet(sending)
 		
 			
 	else: return null
@@ -238,19 +274,21 @@ func get_prefix(ip: String, submask: String) -> String:
 
 
 class User:
-	var name
-	var ip
-	var port
-	var socketUDP
-	var audio_id
+	var name: String  # Client name
+	var ip: String  # Client ip
+	var port: int  # Client port
+	var id: int  # Client identification number
+	var socketUDP: PacketPeerUDP  # Socket to communicate (belongs to server)
+	var audio_id: int  # Last audio identification number incoming.
 	
 	func _init(name: String, ip: String, port: int, 
-	socketUDP: PacketPeerUDP):
+	socketUDP: PacketPeerUDP, id: int):
 		self.name = name
 		self.ip = ip
 		self.port = port
 		self.socketUDP = socketUDP
 		self.audio_id = 0  # First incoming ID is 1
+		self.id = id
 
 	# Data can be either String or TYPE_RAW_ARRAY(PoolByteArray)
 	# See Docs: https://bit.ly/36c5nZ8 (For all types)
@@ -264,7 +302,7 @@ class User:
 		else:
 			self.socketUDP.set_dest_address(self.ip, self.port)
 			self.socketUDP.put_packet(data)
-	
+
 	# Opposite of byte_array_to_string
 	func string_to_byte_array(string: String):
 		return string.to_ascii()  # TODO : Change program syntax.
@@ -276,11 +314,11 @@ func _on_SendAudioTimer_timeout():
 		effect.clear_buffer()
 		# Getting file ready to send in network. (using json & gzip)
 		var js_rec = String(recording)
-		# Message format looks like this:
-		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)###
+		# Message format looks like this('0' is the id of the server):
+		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)#SERVER_USER_ID###audio
 		var to_send:PoolByteArray = string_to_byte_array('SEND#' + String(audio_id) + '#') \
-		+	string_to_byte_array(String(string_to_byte_array(js_rec).size()) + '###') \
-		+ 	string_to_byte_array(js_rec).compress(3)
+		+ string_to_byte_array(String(string_to_byte_array(js_rec).size()) + '#0###') \
+		+ string_to_byte_array(js_rec).compress(3)
 		audio_id += 1
 		#print('Sent> ' + String(to_send.size()) + ' ID > ' + String(audio_id))
 		if server_runnning:  # Sending data to all users if server
@@ -360,8 +398,9 @@ func _physics_process(delta):
 			elif ser_ip != '' and ser_port != null:
 				#client_protocol(array_bytes, ip ,port)
 				byte_array_to_string(array_bytes)
+				#client_protocol([array_bytes, ip, port])
 				threads.append(Thread.new())
-				threads[thread_counter].start(self, 'client_protocol', [array_bytes, ip, port])
+				threads[thread_counter].start(self, 'client_protocol', [array_bytes, ip, port, thread_counter])
 				thread_counter += 1
 	# Sever listen loop
 	if server_runnning:
@@ -378,3 +417,9 @@ func _physics_process(delta):
 				response = string_to_byte_array(response)
 			if response != null:
 				socketUDP.put_packet(response)
+
+# Waits for threads to finish and destroys them
+# See at this forum to understand how it works:
+# https://godotengine.org/qa/33120/how-do-thread-and-wait_to_finish-work
+func end_of_thread(id: int):
+	threads[id].wait_to_finish()
