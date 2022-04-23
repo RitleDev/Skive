@@ -10,6 +10,9 @@ var current_sound: PoolVector2Array
 var last_sound: PoolVector2Array
 
 
+# Text Box of IP
+var text: String
+
 # Time varaibles
 var timing: bool = false
 var time = 0
@@ -54,6 +57,7 @@ func _ready():
 	create_locker = Mutex.new()
 	player_locker = Mutex.new()
 	user_id_counter = 1  # Server is taking ID -> 0
+	text = ''
 	var output = []
 	# Getting subnet mask + ip
 # warning-ignore:unused_variable
@@ -72,7 +76,7 @@ func _ready():
 # Responsible for hosting a server and managing connections
 func server():
 	print('Initializing server...')
-	var status = socketUDP.listen(SERVER_PORT, host_ip)
+	var status = socketUDP.listen(SERVER_PORT, '*') # host_ip
 	if status == 0:
 		print('Server listen OK')
 	else:
@@ -82,14 +86,20 @@ func server():
 
 func client():
 	print('Initializing client...')
-# warning-ignore:return_value_discarded
 	socketUDP.listen(CLIENT_PORT, host_ip)
+	# Direct connection:
+	if text != '':
+		print('Connecting directly to: ' + text)
+		socketUDP.set_dest_address(text, SERVER_PORT)
+		for i in range(5):
+			socketUDP.put_packet(string_to_byte_array('DISC#'))
+		client_runnning = true  # Starting client loop
+		is_recording = true
+		return
 	# Looking for a server - 
 	socketUDP.set_broadcast_enabled(true)  # Enabling broadcasting
-# warning-ignore:return_value_discarded
 	socketUDP.set_dest_address('255.255.255.255', SERVER_PORT)
 	# Sending broadcast packet to discover. (3 times)
-# warning-ignore:unused_variable
 	for i in range(3):
 		socketUDP.put_packet(string_to_byte_array('DISC#'))
 	# Sending a request to individual incase broadcasting is disabled
@@ -163,6 +173,7 @@ func server_protocol(data, ip, port):
 		if not users.has(ip):
 			create_locker.lock()  # Locking to prevent data collision
 			users[ip] = User.new('User', ip, port, socketUDP, user_id_counter)
+			print('new user> ', ip, ', ', String(port))
 			user_id_counter += 1
 			create_locker.unlock()
 			#print(socketUDP)
@@ -193,7 +204,8 @@ func server_protocol(data, ip, port):
 			users[ip].audio_id = msg_id
 			sound_locker.unlock()
 			# TODO - play with threads.
-			play_audio(parse_vector2(sound.get_string_from_ascii()), pb)
+			if sound.size() > 5:
+				play_audio(parse_vector2(sound.get_string_from_ascii()), pb)
 			# After playing sending to all other clients:
 			# Creating the new message
 			var sending = ('SEND#' + String(msg_id) + '#' \
@@ -423,3 +435,7 @@ func _physics_process(delta):
 # https://godotengine.org/qa/33120/how-do-thread-and-wait_to_finish-work
 func end_of_thread(id: int):
 	threads[id].wait_to_finish()
+
+
+func _on_LineEdit_text_changed(new_text):
+	text = new_text  #  Setting text
