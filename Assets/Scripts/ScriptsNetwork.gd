@@ -87,12 +87,12 @@ func server():
 func client():
 	print('Initializing client...')
 	socketUDP.listen(CLIENT_PORT, host_ip)
-	# Direct connection:
+	# Direct connection by ip:
 	if text != '':
 		print('Connecting directly to: ' + text)
 		socketUDP.set_dest_address(text, SERVER_PORT)
 		for i in range(5):
-			socketUDP.put_packet(string_to_byte_array('DISC#'))
+			socketUDP.put_packet('DISC#'.to_ascii())
 		client_runnning = true  # Starting client loop
 		is_recording = true
 		return
@@ -101,14 +101,14 @@ func client():
 	socketUDP.set_dest_address('255.255.255.255', SERVER_PORT)
 	# Sending broadcast packet to discover. (3 times)
 	for i in range(3):
-		socketUDP.put_packet(string_to_byte_array('DISC#'))
+		socketUDP.put_packet('DISC#'.to_ascii())
 	# Sending a request to individual incase broadcasting is disabled
 	var ip_list = get_network_ips(prefix)
 	for each in ip_list:
 		socketUDP.set_dest_address(each, SERVER_PORT)  # Changine address
 		# Checking server
 		for i in range(3):
-			socketUDP.put_packet(string_to_byte_array('DISC#'))
+			socketUDP.put_packet('DISC#'.to_ascii())
 
 	client_runnning = true  # Starting client loop
 	is_recording = true
