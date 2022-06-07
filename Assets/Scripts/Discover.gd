@@ -5,12 +5,14 @@ var USER_PORT: int = 3737
 var socketUDP: PacketPeerUDP
 var listen: bool = false
 
+var hosts = []
+
 func _ready():
 	var output = []
 	var host_ip: String = ''
 	var subnet_mask: String = ''
 	# Getting subnet mask + ip
-# warning-ignore:unused_variable
+	# warning-ignore:unused_variable
 	var result_code = OS.execute('ipconfig', [], true, output)
 	for s in output:
 		if not 'Subnet Mask' in s or not '  IPv4 Address' in s:
@@ -22,8 +24,10 @@ func _ready():
 	# Setting up prefix (only if connectd + firewall is off):
 	var prefix = get_prefix(host_ip, subnet_mask)
 	
-	socketUDP.listen(USER_PORT, host_ip)
+	
 	# Looking for a server - 
+	socketUDP = PacketPeerUDP.new()
+	socketUDP.listen(USER_PORT, host_ip)
 	socketUDP.set_broadcast_enabled(true)  # Enabling broadcasting
 	socketUDP.set_dest_address('255.255.255.255', PORT)
 	# Sending broadcast packet to discover. (3 times)
@@ -45,12 +49,17 @@ func _physics_process(_delta):
 	# Listening 
 	if(listen and socketUDP.get_available_packet_count() > 0):
 		var data = socketUDP.get_packet().get_string_from_ascii()
+		# Data should be 'ACKN#<server_name>'
 		data = data.split('#', true, 10)
-		if data[0] == 'ACKN':
+		var ip = socketUDP.get_packet_ip()
+		if data[0] == 'ACKN' and not ip in hosts:
 			# TODO - Create a HostOption node with proper name label.
-			var ip = socketUDP.get_packet_ip()
-			print('Found host! ', data[1])
-	
+			# ALSO don't forget to close socket at after choosing a server.^^
+			var node: Button = load('Assets/Scenes/HostOption.tscn').instance()
+			node.text = ip  # Setting display text as ip (Can also be as names)
+			node.name = ip.replace('.', '-')  # Setting ID as host's IP.
+			add_child(node)
+			hosts.append(ip)
 
 
 # Get all IPS in a network that are viable of being a server.

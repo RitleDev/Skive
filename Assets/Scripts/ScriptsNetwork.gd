@@ -81,6 +81,7 @@ func server():
 		print('Server listen OK')
 	else:
 		print('Server listen failed, error code: ', status)
+		return
 	server_runnning = true
 
 
@@ -91,24 +92,11 @@ func client():
 	if text != '':
 		print('Connecting directly to: ' + text)
 		socketUDP.set_dest_address(text, SERVER_PORT)
-		for i in range(5):
+		for _i in range(5):
 			socketUDP.put_packet('DISC#'.to_ascii())
-		client_runnning = true  # Starting client loop
-		is_recording = true
-		return
-	# Looking for a server - 
-	socketUDP.set_broadcast_enabled(true)  # Enabling broadcasting
-	socketUDP.set_dest_address('255.255.255.255', SERVER_PORT)
-	# Sending broadcast packet to discover. (3 times)
-	for i in range(3):
-		socketUDP.put_packet('DISC#'.to_ascii())
-	# Sending a request to individual incase broadcasting is disabled
-	var ip_list = get_network_ips(prefix)
-	for each in ip_list:
-		socketUDP.set_dest_address(each, SERVER_PORT)  # Changine address
-		# Checking server
-		for i in range(3):
-			socketUDP.put_packet('DISC#'.to_ascii())
+	else:
+		# TODO Change scene to 'SearchHosts.tscn'
+		pass
 
 	client_runnning = true  # Starting client loop
 	is_recording = true
@@ -144,8 +132,8 @@ func client_protocol(args: Array):
 			var node = AudioStreamPlayer.new()
 			node.stream = AudioStreamGenerator.new()
 			node.stream.buffer_length = 0.1
-			add_child(node)
 			node.name = String(user_id)
+			add_child(node)
 			node.play()
 			id_users[user_id] = 0
 		create_locker.unlock()
@@ -216,7 +204,7 @@ func server_protocol(data, ip, port):
 			# Redirecting data to all users
 			for user in users:
 				if users[user].id != users[ip].id:
-					for i in range(3):
+					for _i in range(3):
 						socketUDP.put_packet(sending)
 		
 			
@@ -394,7 +382,7 @@ var done = false
 var threads = []
 var thread_counter: int = 0
 # <------->
-func _physics_process(delta):
+func _physics_process(_delta):
 	# Wating for an answer
 	# communication with a single server
 	if not done and client_runnning == true:
@@ -409,7 +397,7 @@ func _physics_process(delta):
 				#done = true
 			elif ser_ip != '' and ser_port != null:
 				#client_protocol(array_bytes, ip ,port)
-				byte_array_to_string(array_bytes)
+				array_bytes.get_string_from_ascii()
 				#client_protocol([array_bytes, ip, port])
 				threads.append(Thread.new())
 				threads[thread_counter].start(self, 'client_protocol', [array_bytes, ip, port, thread_counter])
