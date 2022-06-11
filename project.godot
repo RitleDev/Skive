@@ -11,7 +11,7 @@ config_version=4
 [application]
 
 config/name="Skive"
-run/main_scene="res://Assets/Scenes/SearchHosts.tscn"
+run/main_scene="res://Assets/Scenes/SceneManager.tscn"
 run/low_processor_mode=true
 boot_splash/image="res://Assets/Empty.png"
 boot_splash/bg_color=Color( 0.301961, 0.301961, 0.301961, 1 )

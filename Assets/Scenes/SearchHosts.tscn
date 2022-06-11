@@ -1,13 +1,16 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=5 format=2]
 
 [ext_resource path="res://Assets/Scripts/Discover.gd" type="Script" id=1]
 [ext_resource path="res://Assets/basic.tres" type="DynamicFont" id=2]
 [ext_resource path="res://Assets/TextBox.tres" type="DynamicFont" id=3]
+[ext_resource path="res://Assets/Scripts/ChangeScene.gd" type="Script" id=4]
 
 [node name="Node2D" type="Node2D"]
+script = ExtResource( 4 )
 __meta__ = {
 "_editor_description_": "This place is used to display A list of hosts in a network and let the user choose, which server would they like to connect to."
 }
+scene_name = "User"
 
 [node name="Control" type="Control" parent="."]
 margin_right = 960.0
@@ -44,7 +47,7 @@ margin_top = 34.0
 margin_right = 280.0
 margin_bottom = 110.0
 custom_fonts/normal_font = ExtResource( 2 )
-text = "Looking for servers..."
+text = "  Looking for hosts..."
 
 [node name="RichTextLabel2" type="RichTextLabel" parent="Control"]
 anchor_left = 0.5
