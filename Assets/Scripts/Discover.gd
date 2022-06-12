@@ -96,5 +96,6 @@ func get_prefix(ip: String, submask: String) -> String:
 # This is a public method. private starts with an '_', example: _methoh(para)
 # This will be called by a button to signal a scene change
 func ClickedButton(ip: String):
+	socketUDP.close()
 	# godotengine.org/qa/25126/how-to-get-root-node-of-a-scene-not-of-whole-tree
 	self.owner.request_scene_change(ip) #(= Node2D or root of 'SearhHosts.tscn')

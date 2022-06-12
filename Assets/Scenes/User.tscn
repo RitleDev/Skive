@@ -1,6 +1,7 @@
-[gd_scene load_steps=6 format=2]
+[gd_scene load_steps=7 format=2]
 
 [ext_resource path="res://Assets/Scripts/QuitButton.gd" type="Script" id=1]
+[ext_resource path="res://Assets/Scripts/ChangeScene.gd" type="Script" id=2]
 [ext_resource path="res://Assets/Scripts/UserNet.gd" type="Script" id=3]
 [ext_resource path="res://Assets/basic.tres" type="DynamicFont" id=5]
 
@@ -10,6 +11,7 @@ buffer_length = 0.1
 [sub_resource type="AudioStreamMicrophone" id=3]
 
 [node name="User" type="Node2D"]
+script = ExtResource( 2 )
 
 [node name="NetworkSetup" type="Control" parent="."]
 margin_right = 960.0
@@ -72,8 +74,8 @@ grow_vertical = 2
 rect_pivot_offset = Vector2( 294, 42 )
 custom_fonts/normal_font = ExtResource( 5 )
 bbcode_enabled = true
-bbcode_text = "[center]Connecting to host...[/center]"
-text = "Connecting to host..."
+bbcode_text = "[center]Connected![/center]"
+text = "Connected!"
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2( 480, 270 )

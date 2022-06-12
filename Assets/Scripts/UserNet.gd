@@ -65,11 +65,23 @@ func _ready():
 		subnet_mask = s.split('Subnet Mask')[1].split(': ')[1].split('\n')[0]
 		host_ip = s.split('  IPv4 Address')[1].split(': ')[1].split('\n')[0]
 		print('Host ip: ' + host_ip)
+	
+	# Starting client
+	thread = Thread.new()
+	thread.start(self, 'client')
 
 
 func client():
-	print('Initializing client...')
+	print_debug('Initializing client...')
 	socketUDP.listen(CLIENT_PORT, host_ip)
+	
+	
+	var idx = AudioServer.get_bus_index("Record")
+	effect = AudioServer.get_bus_effect(idx,1)
+	playback = $AudioStreamPlayer.get_stream_playback()
+	$AudioStreamPlayer.play()
+	
+	
 	client_runnning = true  # Starting client loop
 	is_recording = true
 
@@ -122,16 +134,6 @@ func client_protocol(args: Array):
 		return
 
 
-
-func _on_ClientButton_pressed():
-	thread = Thread.new()
-	thread.start(self, 'client')
-	var idx = AudioServer.get_bus_index("Record")
-	effect = AudioServer.get_bus_effect(idx,1)
-	playback = $AudioStreamPlayer.get_stream_playback()
-	$AudioStreamPlayer.play()
-
-
 # Converts an array of ints into a string. (using ASCII)
 func byte_array_to_string(array: PoolByteArray) -> String:
 	return array.get_string_from_ascii()  # TODO: Change program syntax.
@@ -143,7 +145,7 @@ func string_to_byte_array(string: String):
 
 
 func _on_SendAudioTimer_timeout():
-	if is_recording and (client_runnning):
+	if is_recording and client_runnning and ser_ip != '':
 		recording = effect.get_buffer(effect.get_frames_available())
 		effect.clear_buffer()
 		# Getting file ready to send in network. (using json & gzip)
