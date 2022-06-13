@@ -1,8 +1,8 @@
 [gd_scene load_steps=5 format=2]
 
 [ext_resource path="res://Assets/Scripts/Discover.gd" type="Script" id=1]
-[ext_resource path="res://Assets/basic.tres" type="DynamicFont" id=2]
-[ext_resource path="res://Assets/TextBox.tres" type="DynamicFont" id=3]
+[ext_resource path="res://Assets/Dynamic Fonts/basic.tres" type="DynamicFont" id=2]
+[ext_resource path="res://Assets/Dynamic Fonts/TextBox.tres" type="DynamicFont" id=3]
 [ext_resource path="res://Assets/Scripts/ChangeScene.gd" type="Script" id=4]
 
 [node name="Node2D" type="Node2D"]

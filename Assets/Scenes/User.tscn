@@ -3,7 +3,7 @@
 [ext_resource path="res://Assets/Scripts/QuitButton.gd" type="Script" id=1]
 [ext_resource path="res://Assets/Scripts/ChangeScene.gd" type="Script" id=2]
 [ext_resource path="res://Assets/Scripts/UserNet.gd" type="Script" id=3]
-[ext_resource path="res://Assets/basic.tres" type="DynamicFont" id=5]
+[ext_resource path="res://Assets/Dynamic Fonts/basic.tres" type="DynamicFont" id=5]
 
 [sub_resource type="AudioStreamGenerator" id=2]
 buffer_length = 0.1

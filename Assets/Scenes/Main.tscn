@@ -2,7 +2,7 @@
 
 [ext_resource path="res://Assets/Scripts/QuitButton.gd" type="Script" id=1]
 [ext_resource path="res://Assets/Scripts/ChangeScene.gd" type="Script" id=4]
-[ext_resource path="res://Assets/basic.tres" type="DynamicFont" id=5]
+[ext_resource path="res://Assets/Dynamic Fonts/basic.tres" type="DynamicFont" id=5]
 
 [node name="Main" type="Node2D"]
 script = ExtResource( 4 )
@@ -53,9 +53,28 @@ custom_fonts/font = ExtResource( 5 )
 text = "QUIT"
 script = ExtResource( 1 )
 
+[node name="RichTextLabel" type="RichTextLabel" parent="NetworkSetup"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+margin_left = -236.0
+margin_top = -234.0
+margin_right = 236.0
+margin_bottom = -46.0
+grow_horizontal = 2
+grow_vertical = 2
+rect_pivot_offset = Vector2( 236, 94 )
+custom_fonts/normal_font = ExtResource( 5 )
+bbcode_enabled = true
+bbcode_text = "[center][font=res://Assets/Dynamic Fonts/Headline.tres][wave amp=50 freq=3][rainbow freq=0.3 sat=3 val=0.9]
+Skive[/rainbow][/wave][/font][/center]"
+text = "
+Skive"
+
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2( 480, 270 )
 current = true
 
-[connection signal="pressed" from="NetworkSetup/ServerButton" to="NetworkSetup" method="_on_ServerButton_pressed"]
+[connection signal="pressed" from="NetworkSetup/ServerButton" to="." method="_on_ServerButton_pressed"]
 [connection signal="pressed" from="NetworkSetup/ClientButton" to="." method="_on_ClientButton_pressed"]

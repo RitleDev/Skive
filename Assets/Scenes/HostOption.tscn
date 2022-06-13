@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=2]
 
-[ext_resource path="res://Assets/TextBox.tres" type="DynamicFont" id=1]
+[ext_resource path="res://Assets/Dynamic Fonts/TextBox.tres" type="DynamicFont" id=1]
 [ext_resource path="res://Assets/Scripts/ButtonTrigger.gd" type="Script" id=2]
 
 [node name="Button" type="Button"]

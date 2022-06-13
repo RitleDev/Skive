@@ -155,12 +155,11 @@ func _on_SendAudioTimer_timeout():
 		var js_rec = String(recording)
 		# Message format looks like this('0' is the id of the server):
 		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)#SERVER_USER_ID###audio
-		var to_send:PoolByteArray = string_to_byte_array('SEND#' + String(audio_id) + '#') \
-		+ string_to_byte_array(String(string_to_byte_array(js_rec).size()) + '#0###') \
-		+ string_to_byte_array(js_rec).compress(3)
+		var to_send:PoolByteArray = ('SEND#' + String(audio_id) + '#').to_ascii() \
+		+ (String(js_rec.to_ascii().size()) + '#0###').to_ascii() \
+		+ js_rec.to_ascii().compress(3)
 		audio_id += 1
 		for i in range(3):
-			print_debug(socketUDP.is_listening())
 			socketUDP.put_packet(to_send)
 
 
