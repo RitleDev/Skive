@@ -44,6 +44,9 @@ var host_ip: String = '127.0.0.1'  # Machine own ip address
 var subnet_mask: String = ''  # Used to get prefix
 var prefix = ''  # Prefix of every ip in network
 
+# Setup vars
+onready var is_all_set: bool = false
+
 # Constants
 # Port to host on - 
 const SERVER_PORT: int = 7373
@@ -157,6 +160,7 @@ func _on_SendAudioTimer_timeout():
 		+ string_to_byte_array(js_rec).compress(3)
 		audio_id += 1
 		for i in range(3):
+			print_debug(socketUDP.is_listening())
 			socketUDP.put_packet(to_send)
 
 
@@ -205,7 +209,11 @@ var threads = []
 var thread_counter: int = 0
 # <------->
 func _physics_process(_delta):
-	# Wating for an answer
+	# Waiting for an ip from Discover.gd
+	if !is_all_set:
+		if ser_ip != '':
+			is_all_set = true
+			socketUDP.set_dest_address(ser_ip, ser_port)
 	# communication with a single server
 	if not done and client_runnning == true:
 		if socketUDP.get_available_packet_count() > 0:
