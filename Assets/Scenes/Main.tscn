@@ -1,6 +1,7 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=5 format=2]
 
 [ext_resource path="res://Assets/Scripts/QuitButton.gd" type="Script" id=1]
+[ext_resource path="res://Assets/Photos/Sound wave free background.jpg" type="Texture" id=2]
 [ext_resource path="res://Assets/Scripts/ChangeScene.gd" type="Script" id=4]
 [ext_resource path="res://Assets/Dynamic Fonts/basic.tres" type="DynamicFont" id=5]
 
@@ -19,9 +20,9 @@ anchor_top = 0.426
 anchor_right = 0.599
 anchor_bottom = 0.574
 margin_left = 0.039978
-margin_top = -0.0400085
+margin_top = 66.96
 margin_right = -0.0400391
-margin_bottom = 0.0400085
+margin_bottom = 67.04
 rect_pivot_offset = Vector2( 154, 64 )
 custom_fonts/font = ExtResource( 5 )
 text = "Host"
@@ -32,22 +33,22 @@ anchor_top = 0.596
 anchor_right = 0.599
 anchor_bottom = 0.744
 margin_left = 0.039978
-margin_top = 0.160004
+margin_top = 67.16
 margin_right = -0.0400391
-margin_bottom = 0.23999
+margin_bottom = 67.24
 rect_pivot_offset = Vector2( 154, 64 )
 custom_fonts/font = ExtResource( 5 )
 text = "Join"
 
 [node name="QuitButton" type="Button" parent="NetworkSetup"]
-anchor_left = 0.02
-anchor_top = 0.867
-anchor_right = 0.137
-anchor_bottom = 0.97
-margin_left = -0.200001
-margin_top = -0.180023
-margin_right = 48.48
-margin_bottom = 24.2
+anchor_left = 0.039
+anchor_top = 0.841
+anchor_right = 0.156
+anchor_bottom = 0.944
+margin_left = -0.440006
+margin_top = -0.140076
+margin_right = 48.24
+margin_bottom = 24.24
 rect_scale = Vector2( 0.7, 0.7 )
 custom_fonts/font = ExtResource( 5 )
 text = "QUIT"
@@ -67,7 +68,7 @@ grow_vertical = 2
 rect_pivot_offset = Vector2( 236, 94 )
 custom_fonts/normal_font = ExtResource( 5 )
 bbcode_enabled = true
-bbcode_text = "[center][font=res://Assets/Dynamic Fonts/Headline.tres][wave amp=50 freq=3][rainbow freq=0.3 sat=3 val=0.9]
+bbcode_text = "[center][font=res://Assets/Dynamic Fonts/Headline.tres][wave amp=50 freq=3][rainbow freq=0.3 sat=1 val=0.9]
 Skive[/rainbow][/wave][/font][/center]"
 text = "
 Skive"
@@ -75,6 +76,12 @@ Skive"
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2( 480, 270 )
 current = true
+
+[node name="SoundWaveFreeBackground" type="Sprite" parent="."]
+position = Vector2( 476, 301 )
+scale = Vector2( 0.242761, 0.242761 )
+z_index = -1
+texture = ExtResource( 2 )
 
 [connection signal="pressed" from="NetworkSetup/ServerButton" to="." method="_on_ServerButton_pressed"]
 [connection signal="pressed" from="NetworkSetup/ClientButton" to="." method="_on_ClientButton_pressed"]

@@ -8,6 +8,16 @@
 
 config_version=4
 
+_global_script_classes=[ {
+"base": "Reference",
+"class": "AES",
+"language": "GDScript",
+"path": "res://Assets/Scripts/AES.gd"
+} ]
+_global_script_class_icons={
+"AES": ""
+}
+
 [application]
 
 config/name="Skive"
