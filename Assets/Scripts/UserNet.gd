@@ -12,6 +12,14 @@ var current_sound: PoolVector2Array
 var last_sound: PoolVector2Array
 
 
+# Encryption
+var rsa_key: CryptoKey
+var aes_key: PoolByteArray
+var crypto: Crypto
+var IV: PoolByteArray = [12, 254, 26, 95, 2, 17, 45, 127, \
+	+ 58, 192, 11, 64, 83, 56, 24, 55]
+
+
 # Time varaibles
 var timing: bool = false
 var time = 0
@@ -68,7 +76,7 @@ func _ready():
 		subnet_mask = s.split('Subnet Mask')[1].split(': ')[1].split('\n')[0]
 		host_ip = s.split('  IPv4 Address')[1].split(': ')[1].split('\n')[0]
 		print('Host ip: ' + host_ip)
-	
+
 	# Starting client
 	thread = Thread.new()
 	thread.start(self, 'client')
@@ -78,7 +86,7 @@ func client():
 	print_debug('Initializing client...')
 	socketUDP.listen(CLIENT_PORT, host_ip)
 	
-	
+
 	var idx = AudioServer.get_bus_index("Record")
 	effect = AudioServer.get_bus_effect(idx,1)
 	playback = $AudioStreamPlayer.get_stream_playback()
@@ -86,7 +94,8 @@ func client():
 	
 	
 	client_runnning = true  # Starting client loop
-	is_recording = true
+	StartEncryptionHandshake()  # Starting encryption in order to join vc.
+	# is_recording = true
 
 
 func client_protocol(args: Array):
@@ -108,11 +117,13 @@ func client_protocol(args: Array):
 	var msg_code = splitted[0]  # Getting message code
 	#print('Code:', msg_code, ' ID:', msg_id, ' Length:', sound_length)
 	
-	if msg_code == 'SEND':
+	if msg_code == 'SEND' and aes_key != null:
 		var msg_id = int(splitted[1])  # Getting message ID (prevent override)
 		var sound_length = int(splitted[2])
 		var user_id = int(splitted[3])
-		var msg = data.subarray(type_index + 3, -1).decompress(sound_length, 3)
+		var msg = AES.decrypt_CBC(data.subarray(type_index + 3, -1)
+			, aes_key, IV)
+		msg = msg.decompress(sound_length, 3)
 		# If no such user exist create new Audio Stream
 		create_locker.lock()
 		if not user_id in id_users:
@@ -135,6 +146,18 @@ func client_protocol(args: Array):
 		sound_locker.unlock()
 		play_audio(parse_vector2(msg.get_string_from_ascii()), pb)
 		return
+	
+	# AES key is sent encrypted with public rsa_key
+	elif msg_code == 'PLAY' and not is_recording:
+		var msg = data.subarray(type_index + 3, -1)
+		aes_key = crypto.decrypt(rsa_key, msg)  # Decrypting to get the AES key
+		print(aes_key)
+		if aes_key != null:  # Just checking for no errors
+			is_recording = true
+		else:
+			print_debug('Error with RSA key decryption to get the AES key.')
+		return
+		
 
 
 # Converts an array of ints into a string. (using ASCII)
@@ -157,7 +180,7 @@ func _on_SendAudioTimer_timeout():
 		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)#SERVER_USER_ID###audio
 		var to_send:PoolByteArray = ('SEND#' + String(audio_id) + '#').to_ascii() \
 		+ (String(js_rec.to_ascii().size()) + '#0###').to_ascii() \
-		+ js_rec.to_ascii().compress(3)
+		+ AES.encrypt_CBC(js_rec.to_ascii().compress(3), aes_key, IV)
 		audio_id += 1
 		for i in range(3):
 			socketUDP.put_packet(to_send)
@@ -169,6 +192,16 @@ func play_audio(recording, playback):
 		for frame in recording:
 			playback.push_frame(frame)
 		player_locker.unlock()
+
+
+func StartEncryptionHandshake():
+	crypto = Crypto.new()
+	rsa_key = CryptoKey.new()
+	rsa_key = crypto.generate_rsa(4096)
+	var rsa_key_str = rsa_key.save_to_string(true)
+	print(rsa_key_str)
+	for _i in range(3):
+		socketUDP.put_packet(('JOIN#' + rsa_key_str).to_utf8())
 
 
 func parse_vector2(data: String):

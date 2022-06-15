@@ -10,12 +10,18 @@ var current_sound: PoolVector2Array
 var last_sound: PoolVector2Array
 
 
+# Encryption
+var IV: PoolByteArray = [12, 254, 26, 95, 2, 17, 45, 127, \
+	+ 58, 192, 11, 64, 83, 56, 24, 55]
+
+
 # Time varaibles
 var timing: bool = false
 var time = 0
 
-# Server loop booleans
+# Server loop booleans & Availability states
 var server_runnning: bool = false
+var open: bool = true
 
 # Selected server details (client protocol uses this)
 var ser_ip = ''
@@ -86,20 +92,46 @@ func server_protocol(data, ip, port):
 	# Processing message: 
 	var type_index = find_triple_hashtag(data)
 	var splitted = data.subarray(0, type_index)
-	splitted = splitted.get_string_from_ascii().split('#')
+	splitted = splitted.get_string_from_ascii().split('#',false, 20)
 	var code = splitted[0]
 	
 	# Handeling message
-	if code == 'DISC':  # Discover
+	if code == 'DISC' and open:  # Discover
+		return 'ACKN#'.to_ascii()  # Acknowledge discovery
+
+	elif code == 'JOIN' and open and splitted[1] != '':
+		for user in users:  # Checking if user already exists
+			if users[user] == ip:
+				return
+		var key: CryptoKey = CryptoKey.new()
+		var crypto: Crypto = Crypto.new()
+		key.load_from_string(splitted[1], true)
+		var aes_key = AES.generate_key()
+		print(aes_key)
+		var ret = 'PLAY###'.to_ascii()
+		
+		
+		print('test: ')
+		print(crypto.encrypt(key, aes_key).size())
+		
+		
+		ret.append_array(crypto.encrypt(key, aes_key))
+		create_locker.lock()  # Locking to prevent data collision
 		if not users.has(ip):
-			create_locker.lock()  # Locking to prevent data collision
-			users[ip] = User.new('User', ip, port, socketUDP, user_id_counter)
+			users[ip] = User.new('User', ip, port, socketUDP, user_id_counter, 
+			aes_key)
 			print('new user> ', ip, ', ', String(port))
 			user_id_counter += 1
-			create_locker.unlock()
-			#print(socketUDP)
-		return 'ACKN#'.to_ascii()  # Acknowledge
+		create_locker.unlock()
+		return ret
+		
+		
+	elif code == 'JOIN' and not open:
+		return 'FAIL#'.to_ascii()  # Server is closed to joining users.
 	
+	elif code == 'JOIN' and open and splitted[1] == '':
+		return 'FAIL#'.to_ascii()  # No key given
+
 	# Playing audio if recieved from a certain user, must be verified
 	elif code == 'SEND':
 		if not users.has(ip):
@@ -119,7 +151,9 @@ func server_protocol(data, ip, port):
 		var pb = node.get_stream_playback()
 		var msg_id = int(splitted[1])  # Getting message ID (prevent override)
 		var sound_length = int(splitted[2])
-		var sound = data.subarray(type_index + 3, -1).decompress(sound_length, 3)
+		var sound = AES.decrypt_CBC(data.subarray(type_index + 3, -1), 
+			users[ip].key, IV)
+		sound = sound.decompress(sound_length, 3)
 		if users[ip].audio_id < msg_id:
 			sound_locker.lock()  # Thread lock to avoid confilct
 			users[ip].audio_id = msg_id
@@ -132,16 +166,22 @@ func server_protocol(data, ip, port):
 			var sending = ('SEND#' + String(msg_id) + '#' \
 			+ String(sound_length) + '#' + String(users[ip].id) \
 			+ '###').to_ascii()
-			# Appeniding unziped audio
-			sending.append_array(data.subarray(type_index + 3, -1))
+			# Appending unziped audio
+			#sending.append_array(data.subarray(type_index + 3, -1))
 			# Redirecting data to all users
 			for user in users:
 				if users[user].id != users[ip].id:
+					var final_send = []
+					var sound_to_send = data.subarray(type_index + 3, -1)
+					final_send.append_array(sending)
+					final_send.append_array(AES.encrypt_CBC(sound_to_send, \
+					+ users[user].key, IV))
 					for _i in range(3):
-						socketUDP.put_packet(sending)
-		
-			
-	else: return null
+						users[user].send_packet(final_send)
+		return ''.to_ascii()
+
+
+	else: return 'FAIL#'.to_ascii()
 
 
 # Starts a server on button click
@@ -194,15 +234,17 @@ class User:
 	var id: int  # Client identification number
 	var socketUDP: PacketPeerUDP  # Socket to communicate (belongs to server)
 	var audio_id: int  # Last audio identification number incoming.
+	var key: PoolByteArray
 	
 	func _init(name: String, ip: String, port: int, 
-	socketUDP: PacketPeerUDP, id: int):
+	socketUDP: PacketPeerUDP, id: int, key: PoolByteArray):
 		self.name = name
 		self.ip = ip
 		self.port = port
 		self.socketUDP = socketUDP
 		self.audio_id = 0  # First incoming ID is 1
 		self.id = id
+		self.key = key
 
 	# Data can be either String or TYPE_RAW_ARRAY(PoolByteArray)
 	# See Docs: https://bit.ly/36c5nZ8 (For all types)
@@ -227,13 +269,18 @@ func _on_SendAudioTimer_timeout():
 		# Message format looks like this('0' is the id of the server):
 		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)#SERVER_USER_ID###audio
 		var to_send:PoolByteArray = ('SEND#' + String(audio_id) + '#').to_ascii() \
-		+ (String(js_rec.to_ascii().size()) + '#0###').to_ascii() \
-		+ js_rec.to_ascii().compress(3)
+		+ (String(js_rec.to_ascii().size()) + '#0###').to_ascii()
 		audio_id += 1
 		#print('Sent> ' + String(to_send.size()) + ' ID > ' + String(audio_id))
 		# Sending data to all users
 		for user in users:
-			users[user].send_packet(to_send)
+			var to_send_final = []
+			to_send_final.append_array(to_send)
+			to_send_final.append_array(
+				AES.encrypt_CBC(js_rec.to_ascii().compress(3), users[user].key,
+				IV))
+			for _i in range(3):
+				users[user].send_packet(to_send_final)
 		
 		# Play only every 0.1 seconds
 		#if current_sound != last_sound:
