@@ -101,7 +101,7 @@ func server_protocol(data, ip, port):
 
 	elif code == 'JOIN' and open and splitted[1] != '':
 		for user in users:  # Checking if user already exists
-			if users[user] == ip:
+			if user == ip:
 				return
 		var key: CryptoKey = CryptoKey.new()
 		var crypto: Crypto = Crypto.new()
@@ -109,12 +109,6 @@ func server_protocol(data, ip, port):
 		var aes_key = AES.generate_key()
 		print(aes_key)
 		var ret = 'PLAY###'.to_ascii()
-		
-		
-		print('test: ')
-		print(crypto.encrypt(key, aes_key).size())
-		
-		
 		ret.append_array(crypto.encrypt(key, aes_key))
 		create_locker.lock()  # Locking to prevent data collision
 		if not users.has(ip):
@@ -153,6 +147,7 @@ func server_protocol(data, ip, port):
 		var sound_length = int(splitted[2])
 		var sound = AES.decrypt_CBC(data.subarray(type_index + 3, -1), 
 			users[ip].key, IV)
+		var sound_to_send = sound  # Later sending that to the other clients
 		sound = sound.decompress(sound_length, 3)
 		if users[ip].audio_id < msg_id:
 			sound_locker.lock()  # Thread lock to avoid confilct
@@ -170,12 +165,11 @@ func server_protocol(data, ip, port):
 			#sending.append_array(data.subarray(type_index + 3, -1))
 			# Redirecting data to all users
 			for user in users:
-				if users[user].id != users[ip].id:
+				if users[user].id != users[ip].id:  # Prevet echo of audio
 					var final_send = []
-					var sound_to_send = data.subarray(type_index + 3, -1)
 					final_send.append_array(sending)
-					final_send.append_array(AES.encrypt_CBC(sound_to_send, \
-					+ users[user].key, IV))
+					final_send.append_array(AES.encrypt_CBC(sound_to_send,
+					users[user].key, IV))
 					for _i in range(3):
 						users[user].send_packet(final_send)
 		return ''.to_ascii()

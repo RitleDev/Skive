@@ -111,7 +111,7 @@ func client_protocol(args: Array):
 	# Refactoring data to match needs
 	# Decompressing message and converting to string
 	# Index when protocol stops being ascii and becomes binary
-	var type_index = find_triple_hashtag(data)
+	var type_index = find_triple_hashtag(data)  # Index between the str & bin
 	var splitted = data.subarray(0, type_index)
 	splitted = byte_array_to_string(splitted).split('#')
 	var msg_code = splitted[0]  # Getting message code
@@ -121,8 +121,9 @@ func client_protocol(args: Array):
 		var msg_id = int(splitted[1])  # Getting message ID (prevent override)
 		var sound_length = int(splitted[2])
 		var user_id = int(splitted[3])
-		var msg = AES.decrypt_CBC(data.subarray(type_index + 3, -1)
-			, aes_key, IV)
+		print('ID: ', msg_id)
+		print('User ID: ', user_id)
+		var msg = AES.decrypt_CBC(data.subarray(type_index + 3, -1), aes_key, IV)
 		msg = msg.decompress(sound_length, 3)
 		# If no such user exist create new Audio Stream
 		create_locker.lock()
