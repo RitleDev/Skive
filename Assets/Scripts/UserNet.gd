@@ -121,8 +121,6 @@ func client_protocol(args: Array):
 		var msg_id = int(splitted[1])  # Getting message ID (prevent override)
 		var sound_length = int(splitted[2])
 		var user_id = int(splitted[3])
-		print('ID: ', msg_id)
-		print('User ID: ', user_id)
 		var msg = AES.decrypt_CBC(data.subarray(type_index + 3, -1), aes_key, IV)
 		msg = msg.decompress(sound_length, 3)
 		# If no such user exist create new Audio Stream
@@ -152,7 +150,6 @@ func client_protocol(args: Array):
 	elif msg_code == 'PLAY' and not is_recording:
 		var msg = data.subarray(type_index + 3, -1)
 		aes_key = crypto.decrypt(rsa_key, msg)  # Decrypting to get the AES key
-		print(aes_key)
 		if aes_key != null:  # Just checking for no errors
 			is_recording = true
 		else:
@@ -198,9 +195,8 @@ func play_audio(recording, playback):
 func StartEncryptionHandshake():
 	crypto = Crypto.new()
 	rsa_key = CryptoKey.new()
-	rsa_key = crypto.generate_rsa(4096)
+	rsa_key = crypto.generate_rsa(2048)
 	var rsa_key_str = rsa_key.save_to_string(true)
-	print(rsa_key_str)
 	for _i in range(3):
 		socketUDP.put_packet(('JOIN#' + rsa_key_str).to_utf8())
 
