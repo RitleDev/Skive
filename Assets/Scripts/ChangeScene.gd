@@ -22,3 +22,14 @@ func _on_ServerButton_pressed():
 	# Emmiting the signal upon click.
 	scene_name = 'Host'
 	emit_signal('scene_changed', scene_name, [])  
+
+
+func _on_Back_pressed():
+	$NetworkSetup.on_Back_pressed()  # Telling the server we are disconnnecting
+	scene_name = 'Main'
+	emit_signal('scene_changed', scene_name, [])  
+
+
+func _on_Back2_pressed():
+	scene_name = 'Main'
+	emit_signal('scene_changed', scene_name, [])  

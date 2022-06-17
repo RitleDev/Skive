@@ -99,3 +99,7 @@ func ClickedButton(ip: String):
 	socketUDP.close()
 	# godotengine.org/qa/25126/how-to-get-root-node-of-a-scene-not-of-whole-tree
 	self.owner.request_scene_change(ip) #(= Node2D or root of 'SearhHosts.tscn')
+
+
+func on_Back_pressed():  # This is just to avoid error on ChangeScene.gd
+	pass

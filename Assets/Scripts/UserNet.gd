@@ -26,6 +26,7 @@ var time = 0
 
 # Client server loop booleans
 var client_runnning: bool = false
+var is_active: bool = true
 
 # Selected server details (client protocol uses this)
 export var ser_ip = ''
@@ -43,8 +44,6 @@ var player_locker: Mutex  # This is used to prevent Audio collisions.
 var user_id_counter: int  # This is used to give each user its own ID.
 
 var sound_thread
-
-var users = {}  # Dict to hold all users/Key = IP(String): Value = User
 
 var id_users = {}  # Dict to hold all users id, audio ids (user_id:audio_id)
 
@@ -143,6 +142,7 @@ func client_protocol(args: Array):
 		sound_locker.lock()  # Thread lock to avoid confilct
 		id_users[user_id] = msg_id
 		sound_locker.unlock()
+		is_active = true  # Registering activity
 		play_audio(parse_vector2(msg.get_string_from_ascii()), pb)
 		return
 	
@@ -152,9 +152,31 @@ func client_protocol(args: Array):
 		aes_key = crypto.decrypt(rsa_key, msg)  # Decrypting to get the AES key
 		if aes_key != null:  # Just checking for no errors
 			is_recording = true
+			is_active = true
+			$ActivityTimer.start()
+			$RichTextLabel.bbcode_text = '[center]Connected![/center]'
 		else:
 			print_debug('Error with RSA key decryption to get the AES key.')
 		return
+	
+	elif msg_code == 'FAIL':
+		is_recording = false
+		client_runnning = false
+		var error_code = splitted[1]
+		if error_code == '1':
+			$RichTextLabel.bbcode_text = '[center]Error: Host refused![/center]'
+		elif error_code == '2':
+			$RichTextLabel.bbcode_text = '[center]Error: No AES key![/center]'
+		elif error_code == '3':
+			$RichTextLabel.bbcode_text = '[center]Error: Not authorized![/center]'
+		else:
+			$RichTextLabel.bbcode_text = '[center]Error: Unknown![/center]'
+		# Stopping communication because of the error.
+	
+	elif msg_code == 'SHUT':
+		is_recording = false
+		client_runnning = false
+		$RichTextLabel.bbcode_text = '[center]Host shut-down![/center]'
 		
 
 
@@ -176,12 +198,12 @@ func _on_SendAudioTimer_timeout():
 		var js_rec = String(recording)
 		# Message format looks like this('0' is the id of the server):
 		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)#SERVER_USER_ID###audio
-		var to_send:PoolByteArray = ('SEND#' + String(audio_id) + '#').to_ascii() \
+		var packet:PoolByteArray = ('SEND#' + String(audio_id) + '#').to_ascii() \
 		+ (String(js_rec.to_ascii().size()) + '#0###').to_ascii() \
 		+ AES.encrypt_CBC(js_rec.to_ascii().compress(3), aes_key, IV)
 		audio_id += 1
 		for i in range(3):
-			socketUDP.put_packet(to_send)
+			socketUDP.put_packet(packet)
 
 
 func play_audio(recording, playback):
@@ -263,3 +285,17 @@ func _physics_process(_delta):
 func end_of_thread(id: int):
 	threads[id].wait_to_finish()
 
+
+# Send disconnect message to server
+func on_Back_pressed():
+	for _i in range(5):
+		socketUDP.put_packet('EXIT#'.to_ascii())
+
+
+func _on_ActivityTimer_timeout():
+	if is_active:
+		is_active = false
+	else:  # server disconnected unexpectedly.
+		is_recording = false
+		client_runnning = false
+		$RichTextLabel.bbcode_text = '[center]Connection timed out![/center]'

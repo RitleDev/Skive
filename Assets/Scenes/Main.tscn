@@ -1,9 +1,15 @@
-[gd_scene load_steps=5 format=2]
+[gd_scene load_steps=7 format=2]
 
 [ext_resource path="res://Assets/Scripts/QuitButton.gd" type="Script" id=1]
 [ext_resource path="res://Assets/Photos/Sound wave free background.jpg" type="Texture" id=2]
 [ext_resource path="res://Assets/Scripts/ChangeScene.gd" type="Script" id=4]
 [ext_resource path="res://Assets/Dynamic Fonts/basic.tres" type="DynamicFont" id=5]
+
+[sub_resource type="StyleBoxFlat" id=1]
+bg_color = Color( 0.819608, 0.0431373, 0.0431373, 1 )
+
+[sub_resource type="StyleBoxFlat" id=2]
+bg_color = Color( 0.698039, 0.0941176, 0.0941176, 1 )
 
 [node name="Main" type="Node2D"]
 script = ExtResource( 4 )
@@ -51,6 +57,8 @@ margin_right = 48.24
 margin_bottom = 24.24
 rect_scale = Vector2( 0.7, 0.7 )
 custom_fonts/font = ExtResource( 5 )
+custom_styles/hover = SubResource( 1 )
+custom_styles/pressed = SubResource( 2 )
 text = "QUIT"
 script = ExtResource( 1 )
 

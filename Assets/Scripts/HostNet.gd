@@ -107,7 +107,6 @@ func server_protocol(data, ip, port):
 		var crypto: Crypto = Crypto.new()
 		key.load_from_string(splitted[1], true)
 		var aes_key = AES.generate_key()
-		print(aes_key)
 		var ret = 'PLAY###'.to_ascii()
 		ret.append_array(crypto.encrypt(key, aes_key))
 		create_locker.lock()  # Locking to prevent data collision
@@ -120,19 +119,20 @@ func server_protocol(data, ip, port):
 		return ret
 		
 		
-	elif code == 'JOIN' and not open:
-		return 'FAIL#'.to_ascii()  # Server is closed to joining users.
+	elif (code == 'JOIN' or code == 'DISC') and not open:
+		return 'FAIL#1'.to_ascii()  # Server is closed to joining users.
 	
 	elif code == 'JOIN' and open and splitted[1] == '':
-		return 'FAIL#'.to_ascii()  # No key given
+		return 'FAIL#2'.to_ascii()  # No key given
 
 	# Playing audio if recieved from a certain user, must be verified
 	elif code == 'SEND':
 		if not users.has(ip):
-			return 'FAIL#'.to_ascii()  # No auth
+			return 'FAIL#3'.to_ascii()  # No auth
 		create_locker.lock()  # Locking when creating a StreamPlayer
 		# Godot doesnt support dots in scene node name
 		var ip_no_dots: String = ip.split('.').join('')
+		users[ip].active = true
 		var node: AudioStreamPlayer = get_node_or_null(ip_no_dots)  # Finding Audio
 		if node == null:
 			node = AudioStreamPlayer.new()
@@ -153,8 +153,7 @@ func server_protocol(data, ip, port):
 			sound_locker.lock()  # Thread lock to avoid confilct
 			users[ip].audio_id = msg_id
 			sound_locker.unlock()
-			# TODO - play with threads.
-			if sound.size() > 5:
+			if sound.size() > 5:  # Checking audio isn't completely empty.
 				play_audio(parse_vector2(sound.get_string_from_ascii()), pb)
 			# After playing sending to all other clients:
 			# Creating the new message
@@ -173,9 +172,13 @@ func server_protocol(data, ip, port):
 					for _i in range(3):
 						users[user].send_packet(final_send)
 		return ''.to_ascii()
+	elif code == 'EXIT' and users.has(ip):  # user disconnection
+		create_locker.lock()
+		users.erase(ip)
+		create_locker.unlock()
 
 
-	else: return 'FAIL#'.to_ascii()
+	else: return 'FAIL#0'.to_ascii()
 
 
 # Starts a server on button click
@@ -228,7 +231,8 @@ class User:
 	var id: int  # Client identification number
 	var socketUDP: PacketPeerUDP  # Socket to communicate (belongs to server)
 	var audio_id: int  # Last audio identification number incoming.
-	var key: PoolByteArray
+	var key: PoolByteArray  # AES Key saving per user.
+	var active: bool  # Checks whether the user has disconnected without notice.
 	
 	func _init(name: String, ip: String, port: int, 
 	socketUDP: PacketPeerUDP, id: int, key: PoolByteArray):
@@ -239,6 +243,7 @@ class User:
 		self.audio_id = 0  # First incoming ID is 1
 		self.id = id
 		self.key = key
+		self.active = true  # Giving the user first 5 seconds spair to not
 
 	# Data can be either String or TYPE_RAW_ARRAY(PoolByteArray)
 	# See Docs: https://bit.ly/36c5nZ8 (For all types)
@@ -262,19 +267,19 @@ func _on_SendAudioTimer_timeout():
 		var js_rec = String(recording)
 		# Message format looks like this('0' is the id of the server):
 		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)#SERVER_USER_ID###audio
-		var to_send:PoolByteArray = ('SEND#' + String(audio_id) + '#').to_ascii() \
+		var packet:PoolByteArray = ('SEND#' + String(audio_id) + '#').to_ascii() \
 		+ (String(js_rec.to_ascii().size()) + '#0###').to_ascii()
 		audio_id += 1
 		#print('Sent> ' + String(to_send.size()) + ' ID > ' + String(audio_id))
 		# Sending data to all users
 		for user in users:
-			var to_send_final = []
-			to_send_final.append_array(to_send)
-			to_send_final.append_array(
+			var final_packet = []
+			final_packet.append_array(packet)
+			final_packet.append_array(
 				AES.encrypt_CBC(js_rec.to_ascii().compress(3), users[user].key,
 				IV))
 			for _i in range(3):
-				users[user].send_packet(to_send_final)
+				users[user].send_packet(final_packet)
 		
 		# Play only every 0.1 seconds
 		#if current_sound != last_sound:
@@ -352,3 +357,37 @@ func _physics_process(_delta):
 # https://godotengine.org/qa/33120/how-do-thread-and-wait_to_finish-work
 func end_of_thread(id: int):
 	threads[id].wait_to_finish()
+
+
+func _on_StatusButton_pressed():
+	var node: Button = $StatusButton
+	if open:
+		open = false
+		node.text = 'CLOSED'
+		node.add_color_override("font_color", Color('#e3092a'))
+		node.add_color_override("font_color_focus", Color('#e3092a'))
+	else:
+		open = true
+		node.text = 'OPEN'
+		node.add_color_override("font_color", Color("#3cef0a"))
+		node.add_color_override("font_color_focus", Color("#3cef0a"))
+
+
+func _on_ActivityTimer_timeout():
+	for user in users:
+		if users[user].active:
+			users[user].active = false
+		else:
+			create_locker.lock()
+			users.erase(user)
+			create_locker.unlock()
+			print('User: ', user, ' timed out.')
+
+
+# Letting all clients know that the server is shutting down.
+func on_Back_pressed():
+	is_recording = false
+	server_runnning = false
+	for user in users:
+		for _i in range(3):
+			users[user].send_packet('SHUT#DOWN'.to_ascii())
