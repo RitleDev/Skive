@@ -73,6 +73,7 @@ down={
 [physics]
 
 common/physics_fps=100
+2d/thread_model=2
 
 [rendering]
 

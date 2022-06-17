@@ -295,7 +295,7 @@ func on_Back_pressed():
 func _on_ActivityTimer_timeout():
 	if is_active:
 		is_active = false
-	else:  # server disconnected unexpectedly.
+	elif client_runnning:  # server disconnected unexpectedly.
 		is_recording = false
 		client_runnning = false
 		$RichTextLabel.bbcode_text = '[center]Connection timed out![/center]'
