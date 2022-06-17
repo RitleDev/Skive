@@ -36,6 +36,7 @@ var thread
 var sound_locker: Mutex  # This is used to track msg ID and avoid confilct.
 var create_locker: Mutex  # This is used when creating users and AudioStreams
 var player_locker: Mutex  # This is used to prevent Audio collisions.
+var text_locker: Mutex
 var user_id_counter: int  # This is used to give each user its own ID.
 
 var sound_thread
@@ -58,6 +59,7 @@ func _ready():
 	sound_locker = Mutex.new()
 	create_locker = Mutex.new()
 	player_locker = Mutex.new()
+	text_locker = Mutex.new()
 	user_id_counter = 1  # Server is taking ID -> 0
 	var output = []
 	# Getting subnet mask + ip
@@ -69,6 +71,7 @@ func _ready():
 		subnet_mask = s.split('Subnet Mask')[1].split(': ')[1].split('\n')[0]
 		host_ip = s.split('  IPv4 Address')[1].split(': ')[1].split('\n')[0]
 		print('Host ip: ' + host_ip)
+		add_line('Hosting on: ' + host_ip)
 	
 	# Setting up prefix (only if connectd + firewall is off):
 	prefix = get_prefix(host_ip, subnet_mask)
@@ -82,8 +85,10 @@ func server():
 	var status = socketUDP.listen(SERVER_PORT, '*') # host_ip
 	if status == 0:
 		print('Server listen OK')
+		add_line('Server Started!')
 	else:
 		print('Server listen failed, error code: ', status)
+		add_line('Server faild to start.')
 		return
 	server_runnning = true
 
@@ -114,6 +119,7 @@ func server_protocol(data, ip, port):
 			users[ip] = User.new('User', ip, port, socketUDP, user_id_counter, 
 			aes_key)
 			print('new user> ', ip, ', ', String(port))
+			add_line('User: ' + ip + ' Connected.')
 			user_id_counter += 1
 		create_locker.unlock()
 		return ret
@@ -173,6 +179,7 @@ func server_protocol(data, ip, port):
 						users[user].send_packet(final_send)
 		return ''.to_ascii()
 	elif code == 'EXIT' and users.has(ip):  # user disconnection
+		add_line('User: ' + ip + ' disconnected.')
 		create_locker.lock()
 		users.erase(ip)
 		create_locker.unlock()
@@ -296,7 +303,6 @@ func play_audio(recording, playback):
 		for frame in recording:
 			playback.push_frame(frame)
 		player_locker.unlock()
-	#print('good')
 
 
 func parse_vector2(data: String):
@@ -340,7 +346,6 @@ func _physics_process(_delta):
 	if server_runnning:
 		while socketUDP.get_available_packet_count() > 0:
 			var array_bytes = socketUDP.get_packet()
-			#print(array_bytes)
 			var ip = socketUDP.get_packet_ip()
 			var port = socketUDP.get_packet_port()
 			#print('From: <', ip, ', ', String(port), '>')
@@ -373,15 +378,17 @@ func _on_StatusButton_pressed():
 		node.add_color_override("font_color_focus", Color("#3cef0a"))
 
 
+# Kick users that are timed out.
 func _on_ActivityTimer_timeout():
 	for user in users:
 		if users[user].active:
-			users[user].active = false
+			users[user].active = false  # reset check for later.
 		else:
 			create_locker.lock()
 			users.erase(user)
 			create_locker.unlock()
 			print('User: ', user, ' timed out.')
+			add_line('User: ' + user + ' timed out.')
 
 
 # Letting all clients know that the server is shutting down.
@@ -391,3 +398,15 @@ func on_Back_pressed():
 	for user in users:
 		for _i in range(3):
 			users[user].send_packet('SHUT#DOWN'.to_ascii())
+
+
+func add_line(text: String):
+	text_locker.lock()
+	$Console.text +=  text + '\n'
+	var current_line = $Console.get_line_count()
+	if current_line > 7:  # Erasing the top line.
+		var txt = $Console.text.split('\n')
+		$Console.text = $Console.text.substr(txt[0].length() + 1, -1)
+	#$Console.scroll_vertical = current_line
+	text_locker.unlock()
+	

@@ -33,3 +33,8 @@ func _on_Back_pressed():
 func _on_Back2_pressed():
 	scene_name = 'Main'
 	emit_signal('scene_changed', scene_name, [])  
+
+
+func _on_QuitButton_pressed():
+	# Letting everyone know the server is shutting down.
+	$NetworkSetup.on_Back_pressed()  

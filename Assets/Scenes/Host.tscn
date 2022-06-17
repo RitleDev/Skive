@@ -1,10 +1,11 @@
-[gd_scene load_steps=14 format=2]
+[gd_scene load_steps=15 format=2]
 
 [ext_resource path="res://Assets/Scripts/QuitButton.gd" type="Script" id=1]
 [ext_resource path="res://Assets/Dynamic Fonts/TextBox.tres" type="DynamicFont" id=2]
 [ext_resource path="res://Assets/Scripts/HostNet.gd" type="Script" id=3]
 [ext_resource path="res://Assets/Scripts/ChangeScene.gd" type="Script" id=4]
 [ext_resource path="res://Assets/Dynamic Fonts/basic.tres" type="DynamicFont" id=5]
+[ext_resource path="res://Assets/Dynamic Fonts/Console2.tres" type="DynamicFont" id=6]
 
 [sub_resource type="AudioStreamGenerator" id=2]
 buffer_length = 0.1
@@ -144,6 +145,20 @@ custom_styles/hover = SubResource( 8 )
 custom_styles/pressed = SubResource( 9 )
 text = "BACK"
 
+[node name="Console" type="TextEdit" parent="NetworkSetup"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+margin_left = -172.0
+margin_top = -96.0
+margin_right = 172.0
+margin_bottom = 96.0
+focus_mode = 0
+custom_colors/font_color_readonly = Color( 1, 1, 1, 1 )
+custom_fonts/font = ExtResource( 6 )
+readonly = true
+
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2( 480, 270 )
 current = true
@@ -159,6 +174,7 @@ bus = "Record"
 
 [connection signal="text_changed" from="NetworkSetup/LineEdit" to="NetworkSetup" method="_on_LineEdit_text_changed"]
 [connection signal="pressed" from="NetworkSetup/StatusButton" to="NetworkSetup" method="_on_StatusButton_pressed"]
+[connection signal="pressed" from="NetworkSetup/QuitButton" to="." method="_on_QuitButton_pressed"]
 [connection signal="timeout" from="NetworkSetup/ActivityTimer" to="NetworkSetup" method="_on_ActivityTimer_timeout"]
 [connection signal="pressed" from="NetworkSetup/Back" to="." method="_on_Back_pressed"]
 [connection signal="timeout" from="SendAudioTimer" to="NetworkSetup" method="_on_SendAudioTimer_timeout"]

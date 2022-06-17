@@ -128,6 +128,7 @@ bus = "Record"
 
 [connection signal="pressed" from="NetworkSetup/ServerButton" to="NetworkSetup" method="_on_ServerButton_pressed"]
 [connection signal="pressed" from="NetworkSetup/ClientButton" to="NetworkSetup" method="_on_ClientButton_pressed"]
+[connection signal="pressed" from="NetworkSetup/QuitButton" to="." method="_on_QuitButton_pressed"]
 [connection signal="pressed" from="NetworkSetup/Back" to="." method="_on_Back_pressed"]
 [connection signal="timeout" from="NetworkSetup/ActivityTimer" to="NetworkSetup" method="_on_ActivityTimer_timeout"]
 [connection signal="timeout" from="SendAudioTimer" to="NetworkSetup" method="_on_SendAudioTimer_timeout"]
