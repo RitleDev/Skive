@@ -31,17 +31,23 @@ config/icon="res://Skive_logo_temp.png"
 
 enable_audio_input=true
 
+[debug]
+
+gdscript/warnings/return_value_discarded=false
+
 [display]
 
 window/size/width=960
 window/size/height=540
-window/size/resizable=false
+window/size/borderless=true
+window/size/always_on_top=true
 window/stretch/mode="viewport"
 window/stretch/aspect="keep"
 
 [global]
 
 wind=false
+window=false
 
 [input]
 
