@@ -86,5 +86,5 @@ common/physics_fps=100
 quality/intended_usage/framebuffer_allocation=0
 quality/shadows/filter_mode=0
 quality/reflections/texture_array_reflections=false
-environment/default_clear_color=Color( 0.301961, 0.301961, 0.301961, 1 )
+environment/default_clear_color=Color( 0.278431, 0.278431, 0.278431, 1 )
 environment/default_environment="res://default_env.tres"

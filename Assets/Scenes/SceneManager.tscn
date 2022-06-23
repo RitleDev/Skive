@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=2]
+[gd_scene load_steps=27 format=2]
 
 [ext_resource path="res://Assets/Scripts/SceneManager.gd" type="Script" id=1]
 [ext_resource path="res://Assets/Scenes/Main.tscn" type="PackedScene" id=2]
@@ -11,6 +11,8 @@
 [ext_resource path="res://Assets/Photos/MinimizedNormal.png" type="Texture" id=9]
 [ext_resource path="res://Assets/Photos/MinimizedHover.png" type="Texture" id=10]
 [ext_resource path="res://Assets/Scenes/MinimizeButton.gd" type="Script" id=11]
+[ext_resource path="res://Skive_logo_temp.png" type="Texture" id=12]
+[ext_resource path="res://Assets/Scenes/SkiveButton.gd" type="Script" id=13]
 
 [sub_resource type="StyleBoxTexture" id=1]
 texture = ExtResource( 4 )
@@ -39,6 +41,16 @@ region_rect = Rect2( 0, 0, 1387, 1387 )
 [sub_resource type="StyleBoxTexture" id=8]
 texture = ExtResource( 9 )
 region_rect = Rect2( 0, 0, 1387, 1387 )
+
+[sub_resource type="StyleBoxEmpty" id=9]
+
+[sub_resource type="StyleBoxEmpty" id=10]
+
+[sub_resource type="StyleBoxEmpty" id=11]
+
+[sub_resource type="StyleBoxEmpty" id=12]
+
+[sub_resource type="StyleBoxEmpty" id=13]
 
 [node name="SceneManager" type="Node"]
 script = ExtResource( 1 )
@@ -85,5 +97,20 @@ custom_styles/focus = SubResource( 7 )
 custom_styles/normal = SubResource( 8 )
 script = ExtResource( 11 )
 
+[node name="SkiveButton" type="Button" parent="TitleBar"]
+margin_left = 4.0
+margin_top = 4.0
+margin_right = 216.0
+margin_bottom = 216.0
+rect_scale = Vector2( 0.15, 0.15 )
+custom_styles/hover = SubResource( 9 )
+custom_styles/pressed = SubResource( 10 )
+custom_styles/focus = SubResource( 11 )
+custom_styles/disabled = SubResource( 12 )
+custom_styles/normal = SubResource( 13 )
+icon = ExtResource( 12 )
+script = ExtResource( 13 )
+
 [connection signal="gui_input" from="TitleBar" to="TitleBar" method="_on_TitleBar_gui_input"]
 [connection signal="pressed" from="TitleBar/MinimizeButton" to="TitleBar/MinimizeButton" method="_on_MinimizeButton_pressed"]
+[connection signal="pressed" from="TitleBar/SkiveButton" to="TitleBar/SkiveButton" method="_on_SkiveButton_pressed"]

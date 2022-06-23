@@ -3,7 +3,6 @@ extends Node
 # Audio
 var effect: AudioEffectCapture
 var playback: AudioStreamPlayback = null
-var recording
 var is_recording = false
 var audio_id: int = 1  # Count audio messages sent TODO: make it not infinty
 var current_sound: PoolVector2Array
@@ -70,12 +69,13 @@ func _ready():
 			continue
 		subnet_mask = s.split('Subnet Mask')[1].split(': ')[1].split('\n')[0]
 		host_ip = s.split('  IPv4 Address')[1].split(': ')[1].split('\n')[0]
-		print('Host ip: ' + host_ip)
-		add_line('Hosting on: ' + host_ip)
+	
+	print('Host ip: ' + host_ip)
+	add_line('Hosting on: ' + host_ip)
 	
 	# Setting up prefix (only if connectd + firewall is off):
 	prefix = get_prefix(host_ip, subnet_mask)
-	Server_init()
+	server()  # Start the server
 	$RichTextLabel.bbcode_text = '[center]Hosting on ' + host_ip + '[/center]'
 
 
@@ -85,12 +85,22 @@ func server():
 	var status = socketUDP.listen(SERVER_PORT, '*') # host_ip
 	if status == 0:
 		print('Server listen OK')
-		add_line('Server Started!')
+		var line = 'Server started!'
+		add_line(line)
 	else:
 		print('Server listen failed, error code: ', status)
 		add_line('Server faild to start.')
 		return
 	server_runnning = true
+	
+	# Letting the server record.
+	var idx = AudioServer.get_bus_index("Record")
+	effect = AudioServer.get_bus_effect(idx,1)
+	# Setting playback stream
+	playback = $AudioStreamPlayer.get_stream_playback()
+	$AudioStreamPlayer.play()
+	#effect.set_recording_active(true)
+	is_recording = true
 
 
 func server_protocol(args):
@@ -194,19 +204,6 @@ func server_protocol(args):
 	else: return 'FAIL#0'.to_ascii()
 
 
-# Starts a server on button click
-func Server_init():
-	thread = Thread.new()
-	thread.start(self, 'server')
-	var idx = AudioServer.get_bus_index("Record")
-	effect = AudioServer.get_bus_effect(idx,1)
-	# Setting playback stream
-	playback = $AudioStreamPlayer.get_stream_playback()
-	$AudioStreamPlayer.play()
-	#effect.set_recording_active(true)
-	is_recording = true
-
-
 func get_network_ips(prefix: String):
 	# Gets all networks valid server ips (arping)
 	var ip_lst = []
@@ -274,7 +271,7 @@ class User:
 
 func _on_SendAudioTimer_timeout():
 	if is_recording and server_runnning:
-		recording = effect.get_buffer(effect.get_frames_available())
+		var recording = effect.get_buffer(effect.get_frames_available())
 		effect.clear_buffer()
 		# Getting file ready to send in network. (using json & gzip)
 		var js_rec = String(recording)
@@ -416,10 +413,10 @@ func on_Back_pressed():
 
 func add_line(text: String):
 	text_locker.lock()
-	$Console.text +=  text + '\n'
+	$Console.text +=  text + '\r\n'
 	var current_line = $Console.get_line_count()
 	if current_line > 7:  # Erasing the top line.
-		var txt = $Console.text.split('\n')
+		var txt = $Console.text.split('\r\n')
 		$Console.text = $Console.text.substr(txt[0].length() + 1, -1)
 	#$Console.scroll_vertical = current_line
 	text_locker.unlock()

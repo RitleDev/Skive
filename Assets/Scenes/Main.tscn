@@ -23,26 +23,26 @@ anchor_left = 0.401
 anchor_top = 0.426
 anchor_right = 0.599
 anchor_bottom = 0.574
-margin_left = 0.039978
-margin_top = 66.96
-margin_right = -0.0400391
-margin_bottom = 67.04
+margin_left = -135.96
+margin_top = 75.96
+margin_right = -136.04
+margin_bottom = 76.04
 rect_pivot_offset = Vector2( 154, 64 )
 custom_fonts/font = ExtResource( 5 )
-text = "Host"
+text = "HOST"
 
 [node name="ClientButton" type="Button" parent="NetworkSetup"]
 anchor_left = 0.401
 anchor_top = 0.596
 anchor_right = 0.599
 anchor_bottom = 0.744
-margin_left = 0.0400085
-margin_top = 67.16
-margin_right = -0.039978
-margin_bottom = 67.24
+margin_left = 138.04
+margin_top = -15.84
+margin_right = 137.96
+margin_bottom = -15.76
 rect_pivot_offset = Vector2( 154, 64 )
 custom_fonts/font = ExtResource( 5 )
-text = "Join"
+text = "JOIN"
 clip_text = true
 
 [node name="Title" type="RichTextLabel" parent="NetworkSetup"]
