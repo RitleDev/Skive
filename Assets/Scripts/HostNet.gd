@@ -93,7 +93,12 @@ func server():
 	server_runnning = true
 
 
-func server_protocol(data, ip, port):
+func server_protocol(args):
+	var data = args[0]
+	var ip = args[1]
+	var port = args[2]
+	var id = args[3]
+	call_deferred("end_of_thread", args.slice(1, -1))
 	# Processing message: 
 	var type_index = find_triple_hashtag(data)
 	var splitted = data.subarray(0, type_index)
@@ -105,22 +110,21 @@ func server_protocol(data, ip, port):
 		return 'ACKN#'.to_ascii()  # Acknowledge discovery
 
 	elif code == 'JOIN' and open and splitted[1] != '':
-		for user in users:  # Checking if user already exists
-			if user == ip:
-				return
+		create_locker.lock()  # Locking to prevent data collision
+		if ip in users:
+			create_locker.unlock()
+			return
 		var key: CryptoKey = CryptoKey.new()
 		var crypto: Crypto = Crypto.new()
 		key.load_from_string(splitted[1], true)
 		var aes_key = AES.generate_key()
 		var ret = 'PLAY###'.to_ascii()
 		ret.append_array(crypto.encrypt(key, aes_key))
-		create_locker.lock()  # Locking to prevent data collision
-		if not users.has(ip):
-			users[ip] = User.new('User', ip, port, socketUDP, user_id_counter, 
-			aes_key)
-			print('new user> ', ip, ', ', String(port))
-			add_line('User: ' + ip + ' Connected.')
-			user_id_counter += 1
+		users[ip] = User.new('User', ip, port, socketUDP, user_id_counter, 
+		aes_key)
+		print('new user> ', ip, ', ', String(port))
+		add_line('User: ' + ip + ' Connected.')
+		user_id_counter += 1
 		create_locker.unlock()
 		return ret
 		
@@ -178,12 +182,14 @@ func server_protocol(data, ip, port):
 					for _i in range(3):
 						users[user].send_packet(final_send)
 		return ''.to_ascii()
-	elif code == 'EXIT' and users.has(ip):  # user disconnection
-		add_line('User: ' + ip + ' disconnected.')
+	elif code == 'EXIT':  # user disconnection
 		create_locker.lock()
+		if not users.has(ip):  # Checking if user already disconnected.
+			create_locker.unlock()
+			return
 		users.erase(ip)
 		create_locker.unlock()
-
+		add_line('User: ' + ip + ' disconnected.')
 
 	else: return 'FAIL#0'.to_ascii()
 
@@ -336,7 +342,7 @@ func find_triple_hashtag(data: PoolByteArray):
 # here server listens to migrate performance issues
 # ------------------------------------------------------------
 # <------->
-# Client listen variables:
+# Server listen variables:
 var done = false
 var threads = []
 var thread_counter: int = 0
@@ -349,19 +355,27 @@ func _physics_process(_delta):
 			var ip = socketUDP.get_packet_ip()
 			var port = socketUDP.get_packet_port()
 			#print('From: <', ip, ', ', String(port), '>')
-			var response = server_protocol(array_bytes, ip, port)
-			socketUDP.set_dest_address(ip, port)
-			var type: int = typeof(response)
-			if type == 4:  # Converting to bytes if the message is string only
-				response = response.to_ascii()
-			if response != null:
-				socketUDP.put_packet(response)
+			threads.append(Thread.new())
+			threads[thread_counter].start(self, 
+			'server_protocol', [array_bytes, ip, port, thread_counter])
+			thread_counter += 1
+			#var response = server_protocol(array_bytes, ip, port)
+
 
 # Waits for threads to finish and destroys them
 # See at this forum to understand how it works:
 # https://godotengine.org/qa/33120/how-do-thread-and-wait_to_finish-work
-func end_of_thread(id: int):
-	threads[id].wait_to_finish()
+func end_of_thread(args):
+	var ip = args[0]
+	var port = args[1]
+	var id = args[2]
+	var response = threads[id].wait_to_finish()
+	socketUDP.set_dest_address(ip, port)
+	var type: int = typeof(response)
+	if type == 4:  # Converting to bytes if the message is string only
+		response = response.to_ascii()
+	if response != null:
+		socketUDP.put_packet(response)
 
 
 func _on_StatusButton_pressed():
@@ -409,4 +423,3 @@ func add_line(text: String):
 		$Console.text = $Console.text.substr(txt[0].length() + 1, -1)
 	#$Console.scroll_vertical = current_line
 	text_locker.unlock()
-	
