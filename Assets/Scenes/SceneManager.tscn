@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=2]
+[gd_scene load_steps=28 format=2]
 
 [ext_resource path="res://Assets/Scripts/SceneManager.gd" type="Script" id=1]
 [ext_resource path="res://Assets/Scenes/Main.tscn" type="PackedScene" id=2]
@@ -13,6 +13,7 @@
 [ext_resource path="res://Assets/Scenes/MinimizeButton.gd" type="Script" id=11]
 [ext_resource path="res://Skive_logo_temp.png" type="Texture" id=12]
 [ext_resource path="res://Assets/Scenes/SkiveButton.gd" type="Script" id=13]
+[ext_resource path="res://Assets/Dynamic Fonts/TextBox.tres" type="DynamicFont" id=14]
 
 [sub_resource type="StyleBoxTexture" id=1]
 texture = ExtResource( 4 )
@@ -110,6 +111,14 @@ custom_styles/disabled = SubResource( 12 )
 custom_styles/normal = SubResource( 13 )
 icon = ExtResource( 12 )
 script = ExtResource( 13 )
+
+[node name="RichTextLabel" type="RichTextLabel" parent="TitleBar"]
+margin_left = 42.0
+margin_right = 254.0
+margin_bottom = 40.0
+mouse_filter = 2
+custom_fonts/normal_font = ExtResource( 14 )
+text = "Skive"
 
 [connection signal="gui_input" from="TitleBar" to="TitleBar" method="_on_TitleBar_gui_input"]
 [connection signal="pressed" from="TitleBar/MinimizeButton" to="TitleBar/MinimizeButton" method="_on_MinimizeButton_pressed"]

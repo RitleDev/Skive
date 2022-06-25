@@ -76,6 +76,10 @@ down={
  ]
 }
 
+[logging]
+
+file_logging/enable_file_logging.pc=false
+
 [physics]
 
 common/physics_fps=100

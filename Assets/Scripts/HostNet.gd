@@ -413,10 +413,10 @@ func on_Back_pressed():
 
 func add_line(text: String):
 	text_locker.lock()
-	$Console.text +=  text + '\r\n'
+	$Console.text +=  text + '\n'
 	var current_line = $Console.get_line_count()
 	if current_line > 7:  # Erasing the top line.
-		var txt = $Console.text.split('\r\n')
+		var txt = $Console.text.split('\n')
 		$Console.text = $Console.text.substr(txt[0].length() + 1, -1)
 	#$Console.scroll_vertical = current_line
 	text_locker.unlock()
