@@ -21,6 +21,7 @@ var time = 0
 # Server loop booleans & Availability states
 var server_runnning: bool = false
 var open: bool = true
+var log_node_status: Node = null
 
 # Selected server details (client protocol uses this)
 var ser_ip = ''
@@ -36,6 +37,7 @@ var sound_locker: Mutex  # This is used to track msg ID and avoid confilct.
 var create_locker: Mutex  # This is used when creating users and AudioStreams
 var player_locker: Mutex  # This is used to prevent Audio collisions.
 var text_locker: Mutex
+var logs_locker: Mutex
 var user_id_counter: int  # This is used to give each user its own ID.
 
 var sound_thread
@@ -52,6 +54,7 @@ var prefix = ''  # Prefix of every ip in network
 # Port to host on - 
 const SERVER_PORT: int = 7373
 const CLIENT_PORT: int = 3737
+const PATH: String = './net_logs.txt'  # Path of logs file.
 
 
 func _ready():
@@ -59,6 +62,9 @@ func _ready():
 	create_locker = Mutex.new()
 	player_locker = Mutex.new()
 	text_locker = Mutex.new()
+	logs_locker = Mutex.new()
+	log_node_status = get_tree().get_root()
+	log_node_status = log_node_status.get_node('SceneManager/TitleBar/LogCheck')
 	user_id_counter = 1  # Server is taking ID -> 0
 	var output = []
 	# Getting subnet mask + ip
@@ -82,14 +88,20 @@ func _ready():
 # Responsible for hosting a server and managing connections
 func server():
 	print('Initializing server...')
+	var time_dict = OS.get_datetime()
+	append_log(String(time_dict['day']) + '/' + String(time_dict['month'])
+	 + '/' + String(time_dict['year']) + ' | ' + 
+	String(time_dict['hour']) +':' + String(time_dict['minute']))
 	var status = socketUDP.listen(SERVER_PORT, '*') # host_ip
 	if status == 0:
 		print('Server listen OK')
 		var line = 'Server started!'
 		add_line(line)
+		append_log('Server started!\n')
 	else:
 		print('Server listen failed, error code: ', status)
 		add_line('Server faild to start.')
+		append_log('Server faild to start.\n')
 		return
 	server_runnning = true
 	
@@ -109,11 +121,16 @@ func server_protocol(args):
 	var port = args[2]
 	var id = args[3]
 	call_deferred("end_of_thread", args.slice(1, -1))
-	# Processing message: 
+	
 	var type_index = find_triple_hashtag(data)
 	var splitted = data.subarray(0, type_index)
+	var log_data = splitted.get_string_from_ascii()
+	# Processing message: 
 	splitted = splitted.get_string_from_ascii().split('#',false, 20)
 	var code = splitted[0]
+	
+	# Storing messages coming from the client in log file: 
+	append_log("<From: " + ip + '> ' + log_data)
 	
 	# Handeling message
 	if code == 'DISC' and open:  # Discover
@@ -189,8 +206,13 @@ func server_protocol(args):
 					final_send.append_array(sending)
 					final_send.append_array(AES.encrypt_CBC(sound_to_send,
 					users[user].key, IV))
+					var to_log: String = ('<To: ' + user + '> ' + 
+					sending.get_string_from_ascii())
 					for _i in range(3):
 						users[user].send_packet(final_send)
+						append_log(to_log)
+						
+					
 		return ''.to_ascii()
 	elif code == 'EXIT':  # user disconnection
 		create_locker.lock()
@@ -288,14 +310,10 @@ func _on_SendAudioTimer_timeout():
 			final_packet.append_array(
 				AES.encrypt_CBC(js_rec.to_ascii().compress(3), users[user].key,
 				IV))
+			var to_log = '<To ' + user + '> ' + packet.get_string_from_ascii()
 			for _i in range(3):
 				users[user].send_packet(final_packet)
-		
-		# Play only every 0.1 seconds
-		#if current_sound != last_sound:
-		#	var t = Thread.new()
-		#	t.start(self, 'play_audio', current_sound)
-		#last_sound = current_sound
+				append_log(to_log)
 
 
 func play_audio(recording, playback):
@@ -371,8 +389,12 @@ func end_of_thread(args):
 	var type: int = typeof(response)
 	if type == 4:  # Converting to bytes if the message is string only
 		response = response.to_ascii()
-	if response != null:
+	if response != null and response != ''.to_ascii():
 		socketUDP.put_packet(response)
+		var type_index = find_triple_hashtag(response)
+		var splitted = response.subarray(0, type_index)
+		if splitted != null:
+			append_log('<To: ' + ip + '> ' + splitted.get_string_from_ascii())
 
 
 func _on_StatusButton_pressed():
@@ -420,3 +442,16 @@ func add_line(text: String):
 		$Console.text = $Console.text.substr(txt[0].length() + 1, -1)
 	#$Console.scroll_vertical = current_line
 	text_locker.unlock()
+	
+	
+func append_log(data: String):
+	logs_locker.lock()
+	if log_node_status.pressed:
+		var file: File = File.new()
+		if file.file_exists(PATH):
+			file.open(PATH, File.READ_WRITE)
+			file.seek_end()
+		else:
+			file.open(PATH, File.WRITE)
+		file.store_line(data)
+	logs_locker.unlock()

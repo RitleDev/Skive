@@ -79,6 +79,8 @@ down={
 [logging]
 
 file_logging/enable_file_logging.pc=false
+file_logging/log_path=""
+file_logging/max_log_files=0
 
 [physics]
 
@@ -90,5 +92,6 @@ common/physics_fps=100
 quality/intended_usage/framebuffer_allocation=0
 quality/shadows/filter_mode=0
 quality/reflections/texture_array_reflections=false
+portals/debug/logging=false
 environment/default_clear_color=Color( 0.278431, 0.278431, 0.278431, 1 )
 environment/default_environment="res://default_env.tres"

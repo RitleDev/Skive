@@ -7,6 +7,8 @@ func _ready():
 	current_scene.connect('scene_changed', self, 'handle_scene_changed')
 	# Dynamic resolution per screen size
 	OS.set_window_size(OS.get_screen_size() / 2)
+	
+	
 
 # This function actually switches between the scenes
 func handle_scene_changed(scene_name: String, info: Array):
