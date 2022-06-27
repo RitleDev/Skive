@@ -27,6 +27,7 @@ var time = 0
 # Client server loop booleans
 var client_runnning: bool = false
 var is_active: bool = true
+var log_node_status: Node = null  # Is logging off or on
 
 # Selected server details (client protocol uses this)
 export var ser_ip = ''
@@ -41,6 +42,7 @@ var thread
 var sound_locker: Mutex  # This is used to track msg ID and avoid confilct.
 var create_locker: Mutex  # This is used when creating users and AudioStreams
 var player_locker: Mutex  # This is used to prevent Audio collisions.
+var logs_locker: Mutex  # Locking when writing to log file.
 var user_id_counter: int  # This is used to give each user its own ID.
 
 var sound_thread
@@ -58,12 +60,16 @@ onready var is_all_set: bool = false
 # Port to host on - 
 const SERVER_PORT: int = 7373
 const CLIENT_PORT: int = 3737
+const PATH: String = './net_logs.txt'  # Path of logs file.
 
 
 func _ready():
 	sound_locker = Mutex.new()
 	create_locker = Mutex.new()
 	player_locker = Mutex.new()
+	logs_locker = Mutex.new()
+	log_node_status = get_tree().get_root()
+	log_node_status = log_node_status.get_node('SceneManager/TitleBar/LogCheck')
 	user_id_counter = 1  # Server is taking ID -> 0
 	var output = []
 	# Getting subnet mask + ip
@@ -83,8 +89,26 @@ func _ready():
 
 func client():
 	print_debug('Initializing client...')
-	socketUDP.listen(CLIENT_PORT, host_ip)
-	
+	# Deleting previous log: 
+	var dir: Directory = Directory.new()
+	var file: File = File.new()
+	if file.file_exists(PATH):
+		dir.remove(PATH)
+	file.close()
+	var time_dict = OS.get_datetime()
+	append_log(String(time_dict['day']) + '/' + String(time_dict['month'])
+	 + '/' + String(time_dict['year']) + ' | ' + 
+	String(time_dict['hour']) +':' + String(time_dict['minute']))
+	var status = socketUDP.listen(CLIENT_PORT, host_ip)
+	if status == 0:
+		print('CLIENT listen OK')
+		var line = 'Client started'
+		append_log(line + '\n')
+	else: 
+		print('Client listen failed, error code: ', status)
+		append_log('Client faild to start. error code: ' + String(status) +
+		 '\n')
+		return
 
 	var idx = AudioServer.get_bus_index("Record")
 	effect = AudioServer.get_bus_effect(idx,1)
@@ -112,9 +136,11 @@ func client_protocol(args: Array):
 	# Index when protocol stops being ascii and becomes binary
 	var type_index = find_triple_hashtag(data)  # Index between the str & bin
 	var splitted = data.subarray(0, type_index)
+	var log_data = splitted.get_string_from_ascii()
 	splitted = byte_array_to_string(splitted).split('#')
 	var msg_code = splitted[0]  # Getting message code
-	#print('Code:', msg_code, ' ID:', msg_id, ' Length:', sound_length)
+	
+	append_log("<From: " + ip + '> ' + log_data)  # Logging activity
 	
 	if msg_code == 'SEND' and aes_key != null:
 		var msg_id = int(splitted[1])  # Getting message ID (prevent override)
@@ -199,11 +225,14 @@ func _on_SendAudioTimer_timeout():
 		# Message format looks like this('0' is the id of the server):
 		# SEND#AUDIO_ID#UNCOMPRESSED_LENGTH(string)#SERVER_USER_ID###audio
 		var packet:PoolByteArray = ('SEND#' + String(audio_id) + '#').to_ascii() \
-		+ (String(js_rec.to_ascii().size()) + '#0###').to_ascii() \
-		+ AES.encrypt_CBC(js_rec.to_ascii().compress(3), aes_key, IV)
+		+ (String(js_rec.to_ascii().size()) + '#0###').to_ascii()
+		var string_length = packet.size() - 3
+		packet.append_array(AES.encrypt_CBC(js_rec.to_ascii().compress(3), aes_key, IV))
 		audio_id += 1
+		var to_log = packet.subarray(0, string_length)
 		for i in range(3):
 			socketUDP.put_packet(packet)
+			append_log('<To: ' + ser_ip + '> ' + to_log.get_string_from_ascii())
 
 
 func play_audio(recording, playback):
@@ -219,8 +248,10 @@ func StartEncryptionHandshake():
 	rsa_key = CryptoKey.new()
 	rsa_key = crypto.generate_rsa(2048)
 	var rsa_key_str = rsa_key.save_to_string(true)
+	var packet:String = 'JOIN#' + rsa_key_str
 	for _i in range(3):
-		socketUDP.put_packet(('JOIN#' + rsa_key_str).to_utf8())
+		socketUDP.put_packet(packet.to_utf8())
+		append_log(packet)
 
 
 func parse_vector2(data: String):
@@ -299,3 +330,17 @@ func _on_ActivityTimer_timeout():
 		is_recording = false
 		client_runnning = false
 		$RichTextLabel.bbcode_text = '[center]Connection timed out![/center]'
+		
+
+func append_log(data: String):
+	logs_locker.lock()
+	if log_node_status.pressed:
+		var file: File = File.new()
+		if file.file_exists(PATH):
+			file.open(PATH, File.READ_WRITE)
+			file.seek_end()
+		else:
+			file.open(PATH, File.WRITE)
+		file.store_line(data)
+		file.close()
+	logs_locker.unlock()

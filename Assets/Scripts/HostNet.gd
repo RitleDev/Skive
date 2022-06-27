@@ -21,7 +21,7 @@ var time = 0
 # Server loop booleans & Availability states
 var server_runnning: bool = false
 var open: bool = true
-var log_node_status: Node = null
+var log_node_status: Node = null  # Is logging off or on
 
 # Selected server details (client protocol uses this)
 var ser_ip = ''
@@ -36,8 +36,8 @@ var thread
 var sound_locker: Mutex  # This is used to track msg ID and avoid confilct.
 var create_locker: Mutex  # This is used when creating users and AudioStreams
 var player_locker: Mutex  # This is used to prevent Audio collisions.
-var text_locker: Mutex
-var logs_locker: Mutex
+var text_locker: Mutex  # Locking when changing console text & other UI objects.
+var logs_locker: Mutex  # Locking when writing to log file.
 var user_id_counter: int  # This is used to give each user its own ID.
 
 var sound_thread
@@ -88,6 +88,12 @@ func _ready():
 # Responsible for hosting a server and managing connections
 func server():
 	print('Initializing server...')
+	# Deleting previous log: 
+	var dir = Directory.new()
+	var file: File = File.new()
+	if file.file_exists(PATH):
+		dir.remove(PATH)
+	file.close()
 	var time_dict = OS.get_datetime()
 	append_log(String(time_dict['day']) + '/' + String(time_dict['month'])
 	 + '/' + String(time_dict['year']) + ' | ' + 
@@ -97,11 +103,14 @@ func server():
 		print('Server listen OK')
 		var line = 'Server started!'
 		add_line(line)
-		append_log('Server started!\n')
+		append_log(line + '\n')
 	else:
 		print('Server listen failed, error code: ', status)
-		add_line('Server faild to start.')
-		append_log('Server faild to start.\n')
+		
+		add_line('Server faild to start. error code: ' + String(status) +
+		 '\n')
+		append_log('Server faild to start. error code: ' + String(status) +
+		 '\n')
 		return
 	server_runnning = true
 	
@@ -130,7 +139,7 @@ func server_protocol(args):
 	var code = splitted[0]
 	
 	# Storing messages coming from the client in log file: 
-	append_log("<From: " + ip + '> ' + log_data)
+	append_log("<From: " + ip + '> ' + log_data)  # Logging activity
 	
 	# Handeling message
 	if code == 'DISC' and open:  # Discover
@@ -197,8 +206,7 @@ func server_protocol(args):
 			var sending = ('SEND#' + String(msg_id) + '#' \
 			+ String(sound_length) + '#' + String(users[ip].id) \
 			+ '###').to_ascii()
-			# Appending unziped audio
-			#sending.append_array(data.subarray(type_index + 3, -1))
+			
 			# Redirecting data to all users
 			for user in users:
 				if users[user].id != users[ip].id:  # Prevet echo of audio
@@ -454,4 +462,5 @@ func append_log(data: String):
 		else:
 			file.open(PATH, File.WRITE)
 		file.store_line(data)
+		file.close()
 	logs_locker.unlock()
