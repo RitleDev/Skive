@@ -1,7 +1,9 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=4 format=2]
 
 [ext_resource path="res://Assets/Dynamic Fonts/TextBox.tres" type="DynamicFont" id=1]
 [ext_resource path="res://Assets/Scripts/ButtonTrigger.gd" type="Script" id=2]
+
+[sub_resource type="StyleBoxEmpty" id=1]
 
 [node name="Button" type="Button"]
 anchor_right = 0.267
@@ -10,6 +12,7 @@ margin_right = -0.320007
 margin_bottom = -0.0800018
 rect_pivot_offset = Vector2( 128, 41 )
 custom_fonts/font = ExtResource( 1 )
+custom_styles/focus = SubResource( 1 )
 text = "<Host Name>"
 script = ExtResource( 2 )
 
