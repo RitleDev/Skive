@@ -73,7 +73,6 @@ func _ready():
 	user_id_counter = 1  # Server is taking ID -> 0
 	var output = []
 	# Getting subnet mask + ip
-# warning-ignore:unused_variable
 	var result_code = OS.execute('ipconfig', [], true, output)
 	for s in output:
 		if not 'Subnet Mask' in s or not '  IPv4 Address' in s:
@@ -303,9 +302,7 @@ func _physics_process(_delta):
 			var ip = socketUDP.get_packet_ip()
 			var port = socketUDP.get_packet_port()
 			if ser_ip == ip and ser_port == port:
-				#client_protocol(array_bytes, ip ,port)
 				array_bytes.get_string_from_ascii()
-				#client_protocol([array_bytes, ip, port])
 				threads.append(Thread.new())
 				threads[thread_counter].start(self, 'client_protocol', [array_bytes, ip, port, thread_counter])
 				thread_counter += 1
@@ -333,6 +330,7 @@ func _on_ActivityTimer_timeout():
 		
 
 func append_log(data: String):
+	# Append data to the text log file.
 	logs_locker.lock()
 	if log_node_status.pressed:
 		var file: File = File.new()

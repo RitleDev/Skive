@@ -67,8 +67,8 @@ func _ready():
 	log_node_status = log_node_status.get_node('SceneManager/TitleBar/LogCheck')
 	user_id_counter = 1  # Server is taking ID -> 0
 	var output = []
+	
 	# Getting subnet mask + ip
-
 	var result_code = OS.execute('ipconfig', [], true, output)
 	for s in output:
 		if not 'Subnet Mask' in s or not '  IPv4 Address' in s:
@@ -120,7 +120,6 @@ func server():
 	# Setting playback stream
 	playback = $AudioStreamPlayer.get_stream_playback()
 	$AudioStreamPlayer.play()
-	#effect.set_recording_active(true)
 	is_recording = true
 
 
@@ -325,8 +324,6 @@ func _on_SendAudioTimer_timeout():
 
 
 func play_audio(recording, playback):
-	#effect.clear_buffer()
-	#print(recording.size())
 	if recording != null and recording.size() > 0:
 		player_locker.lock()
 		for frame in recording:
@@ -377,12 +374,10 @@ func _physics_process(_delta):
 			var array_bytes = socketUDP.get_packet()
 			var ip = socketUDP.get_packet_ip()
 			var port = socketUDP.get_packet_port()
-			#print('From: <', ip, ', ', String(port), '>')
-			threads.append(Thread.new())
+			threads.append(Thread.new()) # Starting a thread
 			threads[thread_counter].start(self, 
 			'server_protocol', [array_bytes, ip, port, thread_counter])
 			thread_counter += 1
-			#var response = server_protocol(array_bytes, ip, port)
 
 
 # Waits for threads to finish and destroys them
@@ -442,17 +437,18 @@ func on_Back_pressed():
 
 
 func add_line(text: String):
+	# Adding line to the console viewport buttom and if full deleting top line.
 	text_locker.lock()
 	$Console.text +=  text + '\n'
 	var current_line = $Console.get_line_count()
 	if current_line > 7:  # Erasing the top line.
 		var txt = $Console.text.split('\n')
 		$Console.text = $Console.text.substr(txt[0].length() + 1, -1)
-	#$Console.scroll_vertical = current_line
 	text_locker.unlock()
-	
-	
+
+
 func append_log(data: String):
+	# Append data to the text log file.
 	logs_locker.lock()
 	if log_node_status.pressed:
 		var file: File = File.new()

@@ -49,7 +49,7 @@ func _physics_process(_delta):
 	# Listening 
 	if(listen and socketUDP.get_available_packet_count() > 0):
 		var data = socketUDP.get_packet().get_string_from_ascii()
-		# Data should be 'ACKN#<server_name>'
+		# Data should be 'ACKN#'
 		data = data.split('#', true, 10)
 		var ip = socketUDP.get_packet_ip()
 		if data[0] == 'ACKN' and not ip in hosts:
